@@ -144,42 +144,75 @@ export function Standings() {
                     `}
                   >
                     {/* Player info - sticky column */}
-                    <td className="sticky left-0 z-10 bg-[#1a1a2e] px-4 py-3">
+                    <td className={`sticky left-0 z-10 px-4 py-3 ${
+                      member.isEliminated
+                        ? 'bg-red-900/20'
+                        : isCurrentUser
+                          ? 'bg-blue-900/20'
+                          : 'bg-[#1a1a2e]'
+                    }`}>
                       <div className="flex items-center gap-3">
-                        {member.userPicture ? (
-                          <img
-                            src={member.userPicture}
-                            alt={member.userName}
-                            className="w-8 h-8 rounded-full border border-white/10"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm">
-                            {member.userName[0]}
-                          </div>
-                        )}
+                        <div className="relative">
+                          {member.userPicture ? (
+                            <img
+                              src={member.userPicture}
+                              alt={member.userName}
+                              className={`w-10 h-10 rounded-full border-2 ${
+                                member.isEliminated
+                                  ? 'border-red-500/50 grayscale'
+                                  : 'border-white/10'
+                              }`}
+                            />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
+                              member.isEliminated
+                                ? 'bg-red-900/50 text-red-300 border-2 border-red-500/50'
+                                : 'bg-gray-600 text-white'
+                            }`}>
+                              {member.userName[0]}
+                            </div>
+                          )}
+                          {member.isEliminated && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center">
+                              <span className="text-white text-xs font-bold">X</span>
+                            </div>
+                          )}
+                        </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-white text-sm truncate flex items-center gap-2">
+                          <p className={`font-medium text-sm truncate flex items-center gap-2 ${
+                            member.isEliminated ? 'text-gray-400 line-through' : 'text-white'
+                          }`}>
                             {member.userName}
                             {isCurrentUser && (
-                              <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded no-underline">
                                 You
                               </span>
                             )}
                           </p>
-                          <div className="flex items-center gap-2">
-                            {/* Lives indicator */}
-                            <div className="flex gap-0.5">
+                          <div className="flex items-center gap-2 mt-1">
+                            {/* Lives indicator with hearts */}
+                            <div className="flex gap-1">
                               {[...Array(activeSeries.settings?.livesPerPlayer || 2)].map((_, i) => (
                                 <span
                                   key={i}
-                                  className={`w-2 h-2 rounded-full ${
-                                    i < member.livesRemaining ? 'bg-red-500' : 'bg-gray-600'
+                                  className={`text-sm ${
+                                    i < member.livesRemaining
+                                      ? 'text-red-500'
+                                      : 'text-gray-600'
                                   }`}
-                                />
+                                >
+                                  {i < member.livesRemaining ? '❤️' : '🖤'}
+                                </span>
                               ))}
                             </div>
-                            {member.isEliminated && (
-                              <span className="text-xs text-red-400">Eliminated</span>
+                            {member.isEliminated ? (
+                              <span className="text-xs font-bold px-2 py-0.5 bg-red-600/30 text-red-400 rounded-full uppercase tracking-wide">
+                                Eliminated
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-500">
+                                {member.livesRemaining} {member.livesRemaining === 1 ? 'life' : 'lives'}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -269,7 +302,7 @@ export function Standings() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+      <div className="flex flex-wrap gap-6 text-xs text-gray-400">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30" />
           <span>Win</span>
@@ -281,6 +314,14 @@ export function Standings() {
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded bg-yellow-500/10 border border-yellow-500/30" />
           <span>Pending</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>❤️</span>
+          <span>Life remaining</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>🖤</span>
+          <span>Life lost</span>
         </div>
       </div>
     </div>
