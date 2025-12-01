@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, Series, SeriesMember, Pick, Invitation } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings } from '../types';
 import { isSupabaseConfigured } from '../lib/supabase';
 import * as db from '../lib/database';
 import { OddsFormat } from '../lib/nflSchedule';
@@ -26,14 +26,14 @@ interface AppState {
   logout: () => void;
 
   // Series actions
-  createSeries: (name: string, description: string) => Promise<Series | null>;
+  createSeries: (name: string, description: string, settings?: SeriesSettings) => Promise<Series | null>;
   loadUserSeries: () => Promise<void>;
   joinSeries: (seriesId: string) => Promise<void>;
   leaveSeries: (seriesId: string) => Promise<void>;
   deleteSeries: (seriesId: string) => Promise<boolean>;
   setActiveSeries: (seriesId: string | null) => void;
   refreshActiveSeries: () => Promise<void>;
-  updateSeriesSettings: (seriesId: string, settings: { prizeValue?: number; showPrizeValue?: boolean }) => Promise<void>;
+  updateSeriesSettings: (seriesId: string, updates: { prizeValue?: number; showPrizeValue?: boolean; settings?: Partial<SeriesSettings> }) => Promise<void>;
 
   // Invitation actions
   inviteToSeries: (seriesId: string, email: string) => Promise<void>;
@@ -102,14 +102,14 @@ export const useStore = create<AppState>()(
       }),
 
       // Series actions
-      createSeries: async (name, description) => {
+      createSeries: async (name, description, settings = defaultSeriesSettings) => {
         const { user, series } = get();
         if (!user) throw new Error('Must be logged in to create a series');
 
         set({ isLoading: true });
 
         if (isSupabaseConfigured()) {
-          const newSeries = await db.createSeries(name, description, user.id);
+          const newSeries = await db.createSeries(name, description, user.id, settings);
           if (newSeries) {
             set({ series: [...series, newSeries], isLoading: false });
             return newSeries;
@@ -125,19 +125,20 @@ export const useStore = create<AppState>()(
           description,
           createdBy: user.id,
           createdAt: new Date(),
-          currentWeek: 1,
+          currentWeek: settings.startingWeek,
           season: new Date().getFullYear(),
           isActive: true,
           members: [{
             userId: user.id,
             userName: user.name,
             userPicture: user.picture,
-            livesRemaining: 2,
+            livesRemaining: settings.livesPerPlayer,
             isEliminated: false,
             joinedAt: new Date(),
             picks: [],
           }],
           invitations: [],
+          settings,
         };
 
         set({ series: [...series, newSeries], isLoading: false });

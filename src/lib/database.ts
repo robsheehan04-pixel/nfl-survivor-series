@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { User, Series, SeriesMember, Pick, Invitation } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings } from '../types';
 
 // Database types matching Supabase schema
 interface DbUser {
@@ -101,17 +101,20 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 export async function createSeries(
   name: string,
   description: string,
-  userId: string
+  userId: string,
+  settings: SeriesSettings = defaultSeriesSettings
 ): Promise<Series | null> {
   if (!isSupabaseConfigured() || !supabase) return null;
 
-  // Create the series
+  // Create the series with settings stored as JSON
   const { data: seriesData, error: seriesError } = await supabase
     .from('series')
     .insert({
       name,
       description: description || null,
       created_by: userId,
+      current_week: settings.startingWeek,
+      settings: settings,
     })
     .select()
     .single();
@@ -121,12 +124,13 @@ export async function createSeries(
     return null;
   }
 
-  // Add creator as first member
+  // Add creator as first member with correct lives based on settings
   const { error: memberError } = await supabase
     .from('series_members')
     .insert({
       series_id: seriesData.id,
       user_id: userId,
+      lives_remaining: settings.livesPerPlayer,
     });
 
   if (memberError) {
@@ -240,6 +244,13 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
     status: i.status,
   }));
 
+  // Parse settings from database or use defaults
+  const settings: SeriesSettings = seriesData.settings
+    ? (typeof seriesData.settings === 'string'
+        ? JSON.parse(seriesData.settings)
+        : seriesData.settings)
+    : defaultSeriesSettings;
+
   return {
     id: seriesData.id,
     name: seriesData.name,
@@ -253,6 +264,7 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
     invitations,
     prizeValue: seriesData.prize_value || 0,
     showPrizeValue: seriesData.show_prize_value || false,
+    settings,
   };
 }
 
@@ -386,13 +398,36 @@ export async function updatePickResult(
 
 export async function updateSeriesSettings(
   seriesId: string,
-  settings: { prizeValue?: number; showPrizeValue?: boolean }
+  updates: {
+    prizeValue?: number;
+    showPrizeValue?: boolean;
+    settings?: Partial<SeriesSettings>;
+  }
 ): Promise<boolean> {
   if (!isSupabaseConfigured() || !supabase) return false;
 
   const updateData: Record<string, unknown> = {};
-  if (settings.prizeValue !== undefined) updateData.prize_value = settings.prizeValue;
-  if (settings.showPrizeValue !== undefined) updateData.show_prize_value = settings.showPrizeValue;
+  if (updates.prizeValue !== undefined) updateData.prize_value = updates.prizeValue;
+  if (updates.showPrizeValue !== undefined) updateData.show_prize_value = updates.showPrizeValue;
+
+  // If settings are being updated, we need to merge with existing settings
+  if (updates.settings) {
+    // First fetch existing settings
+    const { data: existingData } = await supabase
+      .from('series')
+      .select('settings')
+      .eq('id', seriesId)
+      .single();
+
+    const existingSettings = existingData?.settings || defaultSeriesSettings;
+    const mergedSettings = { ...existingSettings, ...updates.settings };
+    updateData.settings = mergedSettings;
+
+    // If starting week changed, update current_week too
+    if (updates.settings.startingWeek !== undefined) {
+      updateData.current_week = updates.settings.startingWeek;
+    }
+  }
 
   const { error } = await supabase
     .from('series')
@@ -414,6 +449,41 @@ export async function updateSeriesSettings(
 export async function deleteSeries(seriesId: string): Promise<boolean> {
   if (!isSupabaseConfigured() || !supabase) return false;
 
+  // Delete in order to handle foreign key constraints:
+  // 1. Delete picks for this series
+  const { error: picksError } = await supabase
+    .from('picks')
+    .delete()
+    .eq('series_id', seriesId);
+
+  if (picksError) {
+    console.error('Error deleting picks:', picksError);
+    // Continue anyway, picks might not exist
+  }
+
+  // 2. Delete invitations for this series
+  const { error: invitationsError } = await supabase
+    .from('invitations')
+    .delete()
+    .eq('series_id', seriesId);
+
+  if (invitationsError) {
+    console.error('Error deleting invitations:', invitationsError);
+    // Continue anyway
+  }
+
+  // 3. Delete series members
+  const { error: membersError } = await supabase
+    .from('series_members')
+    .delete()
+    .eq('series_id', seriesId);
+
+  if (membersError) {
+    console.error('Error deleting series members:', membersError);
+    // Continue anyway
+  }
+
+  // 4. Finally delete the series itself
   const { error } = await supabase
     .from('series')
     .delete()

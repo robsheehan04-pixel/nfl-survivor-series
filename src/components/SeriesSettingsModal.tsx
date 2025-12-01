@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { SeriesSettings, defaultSeriesSettings } from '../types';
 
 interface SeriesSettingsModalProps {
   isOpen: boolean;
@@ -15,12 +16,16 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // League settings
+  const [settings, setSettings] = useState<SeriesSettings>(defaultSeriesSettings);
+
   const isCreator = activeSeries && user && activeSeries.createdBy === user.id;
 
   useEffect(() => {
     if (activeSeries) {
       setPrizeValue(activeSeries.prizeValue?.toString() || '');
       setShowPrizeValue(activeSeries.showPrizeValue || false);
+      setSettings(activeSeries.settings || defaultSeriesSettings);
     }
   }, [activeSeries]);
 
@@ -33,6 +38,7 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
     await updateSeriesSettings(activeSeries.id, {
       prizeValue: prizeNum,
       showPrizeValue,
+      settings,
     });
 
     setSaved(true);
@@ -55,6 +61,10 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
     }
   };
 
+  const updateSetting = <K extends keyof SeriesSettings>(key: K, value: SeriesSettings[K]) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
   if (!activeSeries) return null;
 
   return (
@@ -72,7 +82,7 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="card max-w-md w-full mx-4"
+            className="card max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto"
           >
             {saved ? (
               <motion.div
@@ -146,14 +156,139 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
                     </button>
                   </div>
 
-                  {/* Current Week (info only) */}
-                  <div className="p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-white">Current Week</p>
-                        <p className="text-xs text-gray-400">Week {activeSeries.currentWeek} of 18</p>
+                  {/* League Settings Section */}
+                  <div className="border-t border-white/10 pt-6">
+                    <h3 className="text-sm font-medium text-gray-300 mb-4">League Rules</h3>
+
+                    {/* Current Week / Starting Week */}
+                    <div className="p-4 bg-white/5 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">Current Week</p>
+                          <p className="text-xs text-gray-400">Started on Week {settings.startingWeek}</p>
+                        </div>
+                        <span className="text-2xl font-bold text-blue-400">{activeSeries.currentWeek}</span>
                       </div>
-                      <span className="text-2xl font-bold text-blue-400">{activeSeries.currentWeek}</span>
+                    </div>
+
+                    {/* Lives Per Player */}
+                    <div className="p-4 bg-white/5 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">Lives Per Player</p>
+                          <p className="text-xs text-gray-400">Losses before elimination</p>
+                        </div>
+                        <select
+                          value={settings.livesPerPlayer}
+                          onChange={(e) => updateSetting('livesPerPlayer', parseInt(e.target.value))}
+                          className="bg-white/10 border border-white/20 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          {[1, 2, 3, 4, 5].map(lives => (
+                            <option key={lives} value={lives} className="bg-gray-800">
+                              {lives} {lives === 1 ? 'life' : 'lives'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Team Reuse Limit */}
+                    <div className="p-4 bg-white/5 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">Team Usage Limit</p>
+                          <p className="text-xs text-gray-400">Times each team can be picked</p>
+                        </div>
+                        <select
+                          value={settings.maxTeamUses}
+                          onChange={(e) => updateSetting('maxTeamUses', parseInt(e.target.value))}
+                          className="bg-white/10 border border-white/20 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value={1} className="bg-gray-800">Once per season</option>
+                          <option value={2} className="bg-gray-800">Twice per season</option>
+                          <option value={3} className="bg-gray-800">3 times per season</option>
+                          <option value={18} className="bg-gray-800">Unlimited</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Tie Game Handling */}
+                    <div className="p-4 bg-white/5 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">Tie Games Count As</p>
+                          <p className="text-xs text-gray-400">How to handle tied games</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateSetting('tieCountsAsWin', true)}
+                            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                              settings.tieCountsAsWin
+                                ? 'bg-green-500 text-white'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                            }`}
+                          >
+                            Win
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSetting('tieCountsAsWin', false)}
+                            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                              !settings.tieCountsAsWin
+                                ? 'bg-red-500 text-white'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                            }`}
+                          >
+                            Loss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Multiple Entries */}
+                    <div className="p-4 bg-white/5 rounded-lg mb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-white">Allow Multiple Entries</p>
+                          <p className="text-xs text-gray-400">Players can have more than one entry</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => updateSetting('allowMultipleEntries', !settings.allowMultipleEntries)}
+                          className={`
+                            relative w-12 h-6 rounded-full transition-colors
+                            ${settings.allowMultipleEntries ? 'bg-blue-500' : 'bg-gray-600'}
+                          `}
+                        >
+                          <motion.div
+                            animate={{ x: settings.allowMultipleEntries ? 24 : 2 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full"
+                          />
+                        </button>
+                      </div>
+
+                      {settings.allowMultipleEntries && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-center justify-between pt-3 mt-3 border-t border-white/10"
+                        >
+                          <p className="text-sm text-gray-300">Max Entries Per Player</p>
+                          <select
+                            value={settings.maxEntriesPerPlayer}
+                            onChange={(e) => updateSetting('maxEntriesPerPlayer', parseInt(e.target.value))}
+                            className="bg-white/10 border border-white/20 rounded px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            {[2, 3, 4, 5, 10].map(num => (
+                              <option key={num} value={num} className="bg-gray-800">
+                                {num} entries
+                              </option>
+                            ))}
+                          </select>
+                        </motion.div>
+                      )}
                     </div>
                   </div>
 

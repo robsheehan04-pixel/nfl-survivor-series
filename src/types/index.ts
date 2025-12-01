@@ -5,6 +5,15 @@ export interface User {
   picture: string;
 }
 
+export interface SeriesSettings {
+  startingWeek: number;           // Which week the series starts (1-18)
+  tieCountsAsWin: boolean;        // Whether a tie game counts as a win
+  maxTeamUses: number;            // How many times a team can be used (1 = once per season)
+  livesPerPlayer: number;         // Number of losses before elimination (default 2)
+  allowMultipleEntries: boolean;  // Whether players can have multiple entries
+  maxEntriesPerPlayer: number;    // Max entries per player if multiple allowed
+}
+
 export interface Series {
   id: string;
   name: string;
@@ -18,7 +27,18 @@ export interface Series {
   invitations: Invitation[];
   prizeValue?: number;
   showPrizeValue?: boolean;
+  settings?: SeriesSettings;
 }
+
+// Default settings for new series
+export const defaultSeriesSettings: SeriesSettings = {
+  startingWeek: 1,
+  tieCountsAsWin: true,
+  maxTeamUses: 1,
+  livesPerPlayer: 2,
+  allowMultipleEntries: false,
+  maxEntriesPerPlayer: 1,
+};
 
 export interface SeriesMember {
   userId: string;
