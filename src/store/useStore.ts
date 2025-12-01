@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, Sport, Competition, SeriesType } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, Sport, Competition, SeriesType, PlayoffBracketPick, PlayoffPoolMember, PlayoffStage } from '../types';
 import { isSupabaseConfigured } from '../lib/supabase';
 import * as db from '../lib/database';
 import { OddsFormat } from '../lib/nflSchedule';
@@ -47,6 +47,16 @@ interface AppState {
   adminMakePick: (seriesId: string, targetUserId: string, teamId: string) => Promise<boolean>;
   processWeekResults: (seriesId: string, week: number, results: Record<string, 'win' | 'loss'>) => void;
   autoPickFavorite: (seriesId: string, favoriteTeamId: string) => Promise<void>;
+
+  // Playoff Pool actions
+  makePlayoffPick: (seriesId: string, picks: { gameId: string; pickedWinnerId: string; predictedMargin: number }[]) => Promise<void>;
+  getPlayoffPoolStatus: (seriesId: string) => {
+    picks: PlayoffBracketPick[];
+    hasSubmittedStage1: boolean;
+    hasSubmittedStage2: boolean;
+    totalPoints: number;
+  } | null;
+  updatePlayoffStage: (seriesId: string, stage: PlayoffStage) => Promise<void>;
 
   // Utility
   setLoading: (loading: boolean) => void;
@@ -619,6 +629,135 @@ export const useStore = create<AppState>()(
             };
           }),
         });
+      },
+
+      // Playoff Pool actions
+      makePlayoffPick: async (seriesId, picks) => {
+        const { user, series, activeSeries } = get();
+        if (!user) return;
+
+        const targetSeries = series.find(s => s.id === seriesId);
+        if (!targetSeries || targetSeries.seriesType !== 'playoff_pool') return;
+
+        if (isSupabaseConfigured()) {
+          // Save to database
+          await db.makePlayoffPicks(seriesId, user.id, picks);
+          await get().refreshActiveSeries();
+          return;
+        }
+
+        // Local-only mode
+        const newPicks: PlayoffBracketPick[] = picks.map(p => ({
+          gameId: p.gameId,
+          round: 'wild_card', // Would be determined by game
+          pickedWinnerId: p.pickedWinnerId,
+          predictedMargin: p.predictedMargin,
+          pickedAt: new Date(),
+        }));
+
+        set({
+          series: series.map(s => {
+            if (s.id !== seriesId) return s;
+
+            // Find or create playoff pool member
+            const existingMembers = s.playoffPoolMembers || [];
+            const memberIndex = existingMembers.findIndex(m => m.userId === user.id);
+
+            let updatedMembers: PlayoffPoolMember[];
+            if (memberIndex >= 0) {
+              // Update existing member's picks
+              updatedMembers = existingMembers.map((m, i) => {
+                if (i !== memberIndex) return m;
+                return {
+                  ...m,
+                  picks: [...m.picks.filter(p => !newPicks.some(np => np.gameId === p.gameId)), ...newPicks],
+                };
+              });
+            } else {
+              // Add new member
+              updatedMembers = [...existingMembers, {
+                userId: user.id,
+                userName: user.name,
+                userPicture: user.picture,
+                picks: newPicks,
+                results: [],
+                totalPoints: 0,
+                joinedAt: new Date(),
+              }];
+            }
+
+            return {
+              ...s,
+              playoffPoolMembers: updatedMembers,
+            };
+          }),
+        });
+
+        // Refresh active series
+        const updatedSeries = get().series.find(s => s.id === seriesId);
+        if (updatedSeries && activeSeries?.id === seriesId) {
+          set({ activeSeries: updatedSeries });
+        }
+      },
+
+      getPlayoffPoolStatus: (seriesId) => {
+        const { user, series } = get();
+        if (!user) return null;
+
+        const targetSeries = series.find(s => s.id === seriesId);
+        if (!targetSeries || targetSeries.seriesType !== 'playoff_pool') return null;
+
+        const member = targetSeries.playoffPoolMembers?.find(m => m.userId === user.id);
+        if (!member) {
+          return {
+            picks: [],
+            hasSubmittedStage1: false,
+            hasSubmittedStage2: false,
+            totalPoints: 0,
+          };
+        }
+
+        // Check which stages have been submitted
+        const wildCardGameIds = ['wc-afc-1', 'wc-afc-2', 'wc-afc-3', 'wc-nfc-1', 'wc-nfc-2', 'wc-nfc-3'];
+        const hasSubmittedStage1 = wildCardGameIds.every(gameId =>
+          member.picks.some(p => p.gameId === gameId)
+        );
+
+        const stage2GameIds = ['div-afc-1', 'div-afc-2', 'div-nfc-1', 'div-nfc-2', 'conf-afc', 'conf-nfc', 'super-bowl'];
+        const hasSubmittedStage2 = stage2GameIds.every(gameId =>
+          member.picks.some(p => p.gameId === gameId)
+        );
+
+        return {
+          picks: member.picks,
+          hasSubmittedStage1,
+          hasSubmittedStage2,
+          totalPoints: member.totalPoints,
+        };
+      },
+
+      updatePlayoffStage: async (seriesId, stage) => {
+        const { series, activeSeries } = get();
+
+        if (isSupabaseConfigured()) {
+          await db.updatePlayoffStage(seriesId, stage);
+          await get().refreshActiveSeries();
+          return;
+        }
+
+        // Local-only mode
+        set({
+          series: series.map(s => {
+            if (s.id !== seriesId) return s;
+            return { ...s, playoffStage: stage };
+          }),
+        });
+
+        // Refresh active series
+        const updatedSeries = get().series.find(s => s.id === seriesId);
+        if (updatedSeries && activeSeries?.id === seriesId) {
+          set({ activeSeries: updatedSeries });
+        }
       },
 
       // Utility

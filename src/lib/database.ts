@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, AppRole, SeriesRole, Sport, Competition, SeriesType } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, AppRole, SeriesRole, Sport, Competition, SeriesType, PlayoffStage } from '../types';
 
 // Owner email - this user has full access to all series
 const OWNER_EMAIL = 'robsheehan04@gmail.com';
@@ -719,4 +719,58 @@ export function subscribeToUserInvitations(
   return () => {
     supabase!.removeChannel(channel);
   };
+}
+
+// ============================================
+// PLAYOFF POOL OPERATIONS
+// ============================================
+
+export async function makePlayoffPicks(
+  seriesId: string,
+  userId: string,
+  picks: { gameId: string; pickedWinnerId: string; predictedMargin: number }[]
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  // Upsert each pick
+  const picksToInsert = picks.map(pick => ({
+    series_id: seriesId,
+    user_id: userId,
+    game_id: pick.gameId,
+    picked_winner_id: pick.pickedWinnerId,
+    predicted_margin: pick.predictedMargin,
+    picked_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('playoff_picks')
+    .upsert(picksToInsert, {
+      onConflict: 'series_id,user_id,game_id',
+    });
+
+  if (error) {
+    console.error('Error saving playoff picks:', error);
+    return false;
+  }
+
+  return true;
+}
+
+export async function updatePlayoffStage(
+  seriesId: string,
+  stage: PlayoffStage
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  const { error } = await supabase
+    .from('series')
+    .update({ playoff_stage: stage })
+    .eq('id', seriesId);
+
+  if (error) {
+    console.error('Error updating playoff stage:', error);
+    return false;
+  }
+
+  return true;
 }

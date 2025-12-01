@@ -58,6 +58,9 @@ export interface SeriesSettings {
   maxEntriesPerPlayer: number;    // Max entries per player if multiple allowed
 }
 
+// Re-export playoff pool types
+export * from './playoffPool';
+
 export interface Series {
   id: string;
   name: string;
@@ -76,6 +79,10 @@ export interface Series {
   sport: Sport;
   competition: Competition;
   seriesType: SeriesType;
+  // Playoff Pool specific fields (only used when seriesType === 'playoff_pool')
+  playoffStage?: 'stage_1' | 'stage_2';
+  playoffGames?: import('./playoffPool').PlayoffGame[];
+  playoffPoolMembers?: import('./playoffPool').PlayoffPoolMember[];
 }
 
 // Default settings for new series

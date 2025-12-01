@@ -5,6 +5,8 @@ import { competitionDisplayNames, seriesTypeDisplayNames } from '../types';
 import { getWeekLabel } from '../data/teams';
 import { WeeklyPicker } from './WeeklyPicker';
 import { Standings } from './Standings';
+import { PlayoffPoolPicker } from './PlayoffPoolPicker';
+import { PlayoffPoolStandings } from './PlayoffPoolStandings';
 import { InviteModal } from './InviteModal';
 import { PrizeDisplay } from './PrizeDisplay';
 import { SeriesSettingsModal } from './SeriesSettingsModal';
@@ -51,6 +53,7 @@ export function SeriesDetail() {
 
   const sportIcon = activeSeries.sport === 'soccer' ? '⚽' : '🏈';
   const weekLabel = getWeekLabel(activeSeries.sport, activeSeries.competition);
+  const isPlayoffPool = activeSeries.seriesType === 'playoff_pool';
 
   const isSeriesCreator = activeSeries.createdBy === user?.id;
   const isAppOwner = user?.role === 'owner';
@@ -58,6 +61,9 @@ export function SeriesDetail() {
   const member = activeSeries.members.find(m => m.userId === user?.id);
   const isMember = !!member;
   const activePlayers = activeSeries.members.filter(m => !m.isEliminated).length;
+  const totalParticipants = isPlayoffPool
+    ? (activeSeries.playoffPoolMembers?.length || 0)
+    : activeSeries.members.length;
 
   const handleLeaveSeries = () => {
     leaveSeries(activeSeries.id);
@@ -65,12 +71,12 @@ export function SeriesDetail() {
     setShowLeaveConfirm(false);
   };
 
-  // Only show "Make Pick" tab if user is a member of the series
+  // Build tabs based on series type
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    // Only show Make Pick if user is a member
-    ...(isMember ? [{
+    // Show picks tab for members (or all users for playoff pool)
+    ...((isMember || isPlayoffPool) ? [{
       id: 'pick' as Tab,
-      label: 'Make Pick',
+      label: isPlayoffPool ? 'Make Picks' : 'Make Pick',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -79,7 +85,7 @@ export function SeriesDetail() {
     }] : []),
     {
       id: 'standings',
-      label: 'Standings',
+      label: isPlayoffPool ? 'Leaderboard' : 'Standings',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -128,17 +134,28 @@ export function SeriesDetail() {
               </span>
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-              <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {weekLabel} {activeSeries.currentWeek}
-              </span>
+              {isPlayoffPool ? (
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {activeSeries.playoffStage === 'stage_2' ? 'Stage 2: Bracket' : 'Stage 1: Wild Card'}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {weekLabel} {activeSeries.currentWeek}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                {activePlayers}/{activeSeries.members.length} remaining
+                {isPlayoffPool
+                  ? `${totalParticipants} participant${totalParticipants !== 1 ? 's' : ''}`
+                  : `${activePlayers}/${activeSeries.members.length} remaining`}
               </span>
             </div>
           </div>
@@ -146,16 +163,19 @@ export function SeriesDetail() {
           <div className="flex gap-2">
             {isOwner && (
               <>
-                <button
-                  onClick={() => setShowAdminPickModal(true)}
-                  className="btn-secondary flex items-center gap-2"
-                  title="Make pick for another member"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                  Admin Pick
-                </button>
+                {/* Admin pick only for survivor-style pools, not playoff pools */}
+                {!isPlayoffPool && (
+                  <button
+                    onClick={() => setShowAdminPickModal(true)}
+                    className="btn-secondary flex items-center gap-2"
+                    title="Make pick for another member"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                    Admin Pick
+                  </button>
+                )}
                 <button
                   onClick={() => setShowSettingsModal(true)}
                   className="btn-secondary flex items-center gap-2"
@@ -192,8 +212,8 @@ export function SeriesDetail() {
           </div>
         </div>
 
-        {/* Player status bar */}
-        {member && (
+        {/* Player status bar - only for survivor-style pools */}
+        {member && !isPlayoffPool && (
           <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -259,8 +279,8 @@ export function SeriesDetail() {
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
         >
-          {activeTab === 'pick' && <WeeklyPicker />}
-          {activeTab === 'standings' && <Standings />}
+          {activeTab === 'pick' && (isPlayoffPool ? <PlayoffPoolPicker /> : <WeeklyPicker />)}
+          {activeTab === 'standings' && (isPlayoffPool ? <PlayoffPoolStandings /> : <Standings />)}
         </motion.div>
       </AnimatePresence>
 
