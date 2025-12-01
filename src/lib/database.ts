@@ -1,5 +1,5 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, AppRole, SeriesRole } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, AppRole, SeriesRole, Sport, Competition, SeriesType } from '../types';
 
 // Owner email - this user has full access to all series
 const OWNER_EMAIL = 'robsheehan04@gmail.com';
@@ -113,7 +113,10 @@ export async function createSeries(
   name: string,
   description: string,
   userId: string,
-  settings: SeriesSettings = defaultSeriesSettings
+  settings: SeriesSettings = defaultSeriesSettings,
+  sport: Sport = 'nfl',
+  competition: Competition = 'regular_season',
+  seriesType: SeriesType = 'survivor'
 ): Promise<Series | null> {
   if (!isSupabaseConfigured() || !supabase) return null;
 
@@ -126,6 +129,9 @@ export async function createSeries(
       created_by: userId,
       current_week: settings.startingWeek,
       settings: settings,
+      sport,
+      competition,
+      series_type: seriesType,
     })
     .select()
     .single();
@@ -317,6 +323,10 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
     prizeValue: seriesData.prize_value || 0,
     showPrizeValue: seriesData.show_prize_value || false,
     settings,
+    // Multi-sport fields with defaults for existing data
+    sport: (seriesData.sport as Sport) || 'nfl',
+    competition: (seriesData.competition as Competition) || 'regular_season',
+    seriesType: (seriesData.series_type as SeriesType) || 'survivor',
   };
 }
 

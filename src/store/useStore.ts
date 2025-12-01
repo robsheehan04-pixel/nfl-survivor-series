@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, Sport, Competition, SeriesType } from '../types';
 import { isSupabaseConfigured } from '../lib/supabase';
 import * as db from '../lib/database';
 import { OddsFormat } from '../lib/nflSchedule';
@@ -27,7 +27,7 @@ interface AppState {
   logout: () => void;
 
   // Series actions
-  createSeries: (name: string, description: string, settings?: SeriesSettings) => Promise<Series | null>;
+  createSeries: (name: string, description: string, settings?: SeriesSettings, sport?: Sport, competition?: Competition, seriesType?: SeriesType) => Promise<Series | null>;
   loadUserSeries: () => Promise<void>;
   joinSeries: (seriesId: string) => Promise<void>;
   leaveSeries: (seriesId: string) => Promise<void>;
@@ -121,14 +121,14 @@ export const useStore = create<AppState>()(
       }),
 
       // Series actions
-      createSeries: async (name, description, settings = defaultSeriesSettings) => {
+      createSeries: async (name, description, settings = defaultSeriesSettings, sport: Sport = 'nfl', competition: Competition = 'regular_season', seriesType: SeriesType = 'survivor') => {
         const { user, series } = get();
         if (!user) throw new Error('Must be logged in to create a series');
 
         set({ isLoading: true });
 
         if (isSupabaseConfigured()) {
-          const newSeries = await db.createSeries(name, description, user.id, settings);
+          const newSeries = await db.createSeries(name, description, user.id, settings, sport, competition, seriesType);
           if (newSeries) {
             set({ series: [...series, newSeries], isLoading: false });
             return newSeries;
@@ -159,6 +159,9 @@ export const useStore = create<AppState>()(
           }],
           invitations: [],
           settings,
+          sport,
+          competition,
+          seriesType,
         };
 
         set({ series: [...series, newSeries], isLoading: false });

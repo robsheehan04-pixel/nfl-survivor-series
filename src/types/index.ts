@@ -1,6 +1,46 @@
 export type AppRole = 'owner' | 'user';
 export type SeriesRole = 'admin' | 'member';
 
+// Multi-sport types
+export type Sport = 'nfl' | 'soccer';
+export type NFLCompetition = 'regular_season' | 'playoffs';
+export type SoccerCompetition = 'premier_league' | 'world_cup_2026';
+export type Competition = NFLCompetition | SoccerCompetition;
+export type NFLSeriesType = 'survivor' | 'playoff_pool';
+export type SoccerSeriesType = 'last_man_standing';
+export type SeriesType = NFLSeriesType | SoccerSeriesType;
+
+// Helper to get valid competitions for a sport
+export const getCompetitionsForSport = (sport: Sport): Competition[] => {
+  if (sport === 'nfl') return ['regular_season', 'playoffs'];
+  return ['premier_league', 'world_cup_2026'];
+};
+
+// Helper to get valid series types for a sport
+export const getSeriesTypesForSport = (sport: Sport): SeriesType[] => {
+  if (sport === 'nfl') return ['survivor', 'playoff_pool'];
+  return ['last_man_standing'];
+};
+
+// Display names for sports, competitions, and series types
+export const sportDisplayNames: Record<Sport, string> = {
+  nfl: 'NFL',
+  soccer: 'Soccer',
+};
+
+export const competitionDisplayNames: Record<Competition, string> = {
+  regular_season: 'Regular Season',
+  playoffs: 'Playoffs',
+  premier_league: 'Premier League',
+  world_cup_2026: 'World Cup 2026',
+};
+
+export const seriesTypeDisplayNames: Record<SeriesType, string> = {
+  survivor: 'Survivor',
+  playoff_pool: 'Playoff Pool',
+  last_man_standing: 'Last Man Standing',
+};
+
 export interface User {
   id: string;
   email: string;
@@ -32,6 +72,10 @@ export interface Series {
   prizeValue?: number;
   showPrizeValue?: boolean;
   settings?: SeriesSettings;
+  // Multi-sport fields
+  sport: Sport;
+  competition: Competition;
+  seriesType: SeriesType;
 }
 
 // Default settings for new series

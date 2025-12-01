@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
-import { Series } from '../types';
+import { Series, competitionDisplayNames, seriesTypeDisplayNames } from '../types';
+import { getWeekLabel } from '../data/teams';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -88,6 +89,8 @@ export function Sidebar({ isOpen, onClose, onCreateSeries, onViewInvitations }: 
           mySeries.map((s) => {
             const status = getMyStatus(s);
             const isActive = activeSeries?.id === s.id;
+            const sportIcon = s.sport === 'soccer' ? '⚽' : '🏈';
+            const weekLabel = getWeekLabel(s.sport, s.competition);
 
             return (
               <motion.button
@@ -102,15 +105,18 @@ export function Sidebar({ isOpen, onClose, onCreateSeries, onViewInvitations }: 
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-white truncate pr-2">{s.name}</h3>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg flex-shrink-0">{sportIcon}</span>
+                    <h3 className="font-semibold text-white truncate">{s.name}</h3>
+                  </div>
                   {status?.isEliminated && (
-                    <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full">
+                    <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full flex-shrink-0">
                       Eliminated
                     </span>
                   )}
                 </div>
                 <div className="flex items-center justify-between text-xs text-gray-400">
-                  <span>Week {s.currentWeek}</span>
+                  <span>{weekLabel} {s.currentWeek}</span>
                   <span className="flex items-center gap-1">
                     {status && !status.isEliminated && (
                       <>
@@ -125,6 +131,10 @@ export function Sidebar({ isOpen, onClose, onCreateSeries, onViewInvitations }: 
                       </>
                     )}
                   </span>
+                </div>
+                {/* Competition/Type info */}
+                <div className="mt-1 text-xs text-gray-500 truncate">
+                  {competitionDisplayNames[s.competition]} • {seriesTypeDisplayNames[s.seriesType]}
                 </div>
                 <div className="mt-2 flex items-center gap-1">
                   <div className="flex -space-x-2">

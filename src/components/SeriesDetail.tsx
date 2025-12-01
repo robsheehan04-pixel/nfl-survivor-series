@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { competitionDisplayNames, seriesTypeDisplayNames } from '../types';
+import { getWeekLabel } from '../data/teams';
 import { WeeklyPicker } from './WeeklyPicker';
 import { Standings } from './Standings';
 import { InviteModal } from './InviteModal';
@@ -37,7 +39,7 @@ export function SeriesDetail() {
         className="flex flex-col items-center justify-center h-96 text-center"
       >
         <div className="w-24 h-24 mb-6 bg-white/5 rounded-full flex items-center justify-center">
-          <span className="text-5xl">🏈</span>
+          <span className="text-5xl">🏆</span>
         </div>
         <h2 className="text-2xl font-bold text-white mb-2">Select a Series</h2>
         <p className="text-gray-400 max-w-md">
@@ -46,6 +48,9 @@ export function SeriesDetail() {
       </motion.div>
     );
   }
+
+  const sportIcon = activeSeries.sport === 'soccer' ? '⚽' : '🏈';
+  const weekLabel = getWeekLabel(activeSeries.sport, activeSeries.competition);
 
   const isSeriesCreator = activeSeries.createdBy === user?.id;
   const isAppOwner = user?.role === 'owner';
@@ -102,6 +107,7 @@ export function SeriesDetail() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
+              <span className="text-2xl">{sportIcon}</span>
               <h1 className="font-nfl text-2xl text-white">{activeSeries.name}</h1>
               {isOwner && (
                 <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
@@ -112,12 +118,21 @@ export function SeriesDetail() {
             {activeSeries.description && (
               <p className="text-gray-400 text-sm mb-2">{activeSeries.description}</p>
             )}
+            {/* Competition and Type badges */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                {competitionDisplayNames[activeSeries.competition]}
+              </span>
+              <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded-full">
+                {seriesTypeDisplayNames[activeSeries.seriesType]}
+              </span>
+            </div>
             <div className="flex flex-wrap gap-4 text-sm text-gray-400">
               <span className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Week {activeSeries.currentWeek}
+                {weekLabel} {activeSeries.currentWeek}
               </span>
               <span className="flex items-center gap-1">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
