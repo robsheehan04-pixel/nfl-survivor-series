@@ -43,6 +43,7 @@ interface AppState {
 
   // Pick actions
   makePick: (seriesId: string, teamId: string) => Promise<void>;
+  adminMakePick: (seriesId: string, targetUserId: string, teamId: string) => Promise<boolean>;
   processWeekResults: (seriesId: string, week: number, results: Record<string, 'win' | 'loss'>) => void;
   autoPickFavorite: (seriesId: string, favoriteTeamId: string) => Promise<void>;
 
@@ -447,6 +448,71 @@ export const useStore = create<AppState>()(
         if (updatedSeries && activeSeries?.id === seriesId) {
           set({ activeSeries: updatedSeries });
         }
+      },
+
+      // Admin function to make a pick on behalf of another user
+      adminMakePick: async (seriesId, targetUserId, teamId) => {
+        const { user, series, activeSeries } = get();
+        if (!user) return false;
+
+        const targetSeries = series.find(s => s.id === seriesId);
+        if (!targetSeries) return false;
+
+        // Verify the current user is the series creator (admin)
+        if (targetSeries.createdBy !== user.id) {
+          console.error('Only the series creator can make picks for other users');
+          return false;
+        }
+
+        if (isSupabaseConfigured()) {
+          const success = await db.adminMakePick(seriesId, targetUserId, targetSeries.currentWeek, teamId);
+          if (success) {
+            await get().refreshActiveSeries();
+          }
+          return success;
+        }
+
+        // Local-only mode
+        set({
+          series: series.map(s => {
+            if (s.id !== seriesId) return s;
+
+            return {
+              ...s,
+              members: s.members.map(m => {
+                if (m.userId !== targetUserId) return m;
+                if (m.isEliminated) return m;
+
+                // Find and replace existing pick for this week, or add new one
+                const existingPickIndex = m.picks.findIndex(p => p.week === s.currentWeek);
+                const newPick: Pick = {
+                  week: s.currentWeek,
+                  teamId,
+                  result: 'pending',
+                  isAutoPick: false,
+                  pickedAt: new Date(),
+                };
+
+                const updatedPicks = existingPickIndex >= 0
+                  ? m.picks.map((p, i) => i === existingPickIndex ? newPick : p)
+                  : [...m.picks, newPick];
+
+                return {
+                  ...m,
+                  picks: updatedPicks,
+                };
+              }),
+            };
+          }),
+        });
+
+        // Refresh active series
+        const updatedSeries = get().series.find(s => s.id === seriesId);
+        if (updatedSeries && activeSeries?.id === seriesId) {
+          set({ activeSeries: updatedSeries });
+        }
+
+        return true;
       },
 
       autoPickFavorite: async (seriesId, favoriteTeamId) => {

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { nflTeams, NFLTeam } from '../data/nflTeams';
 import { TeamCard } from './TeamCard';
-import { CountdownTimer } from './CountdownTimer';
+import { CountdownTimer, isDeadlinePassed } from './CountdownTimer';
 import { isTeamOnBye, getTeamMatchupInfo, OddsFormat } from '../lib/nflSchedule';
 
 export function WeeklyPicker() {
@@ -11,6 +11,7 @@ export function WeeklyPicker() {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'AFC' | 'NFC'>('all');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isChangingPick, setIsChangingPick] = useState(false);
 
   const status = activeSeries ? getUserSeriesStatus(activeSeries.id) : null;
   const currentWeek = activeSeries?.currentWeek || 1;
@@ -77,8 +78,11 @@ export function WeeklyPicker() {
   }
 
   const currentPick = status.member.picks.find(p => p.week === activeSeries.currentWeek);
+  const deadlinePassed = isDeadlinePassed();
+  const canChangePick = currentPick && currentPick.result === 'pending' && !deadlinePassed;
 
-  if (currentPick) {
+  // Show the locked-in pick view if user has picked and is not changing their pick
+  if (currentPick && !isChangingPick) {
     const pickedTeam = nflTeams.find(t => t.id === currentPick.teamId);
     const matchup = pickedTeam ? teamMatchups[pickedTeam.id] : null;
 
@@ -89,7 +93,7 @@ export function WeeklyPicker() {
         className="text-center py-8"
       >
         <h3 className="text-xl font-bold text-white mb-6">
-          Week {activeSeries.currentWeek} Pick Locked In
+          Week {activeSeries.currentWeek} Pick {deadlinePassed ? 'Locked In' : 'Selected'}
         </h3>
         {pickedTeam && (
           <div className="flex justify-center mb-4">
@@ -111,6 +115,31 @@ export function WeeklyPicker() {
         <p className="text-gray-400 text-sm mt-2">
           Result: {currentPick.result === 'pending' ? 'Waiting for game results...' : currentPick.result.toUpperCase()}
         </p>
+
+        {/* Change Pick Button - only show before deadline and while result is pending */}
+        {canChangePick && (
+          <div className="mt-6 space-y-3">
+            <button
+              onClick={() => setIsChangingPick(true)}
+              className="btn-secondary flex items-center gap-2 mx-auto"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Change Pick
+            </button>
+            <p className="text-xs text-gray-500">
+              You can change your pick until the deadline
+            </p>
+          </div>
+        )}
+
+        {/* Countdown Timer - show when pick can still be changed */}
+        {canChangePick && (
+          <div className="mt-6 max-w-xs mx-auto">
+            <CountdownTimer />
+          </div>
+        )}
       </motion.div>
     );
   }
@@ -120,8 +149,14 @@ export function WeeklyPicker() {
       makePick(activeSeries.id, selectedTeam);
       setShowConfirmation(false);
       setSelectedTeam(null);
+      setIsChangingPick(false);
     }
   };
+
+  // When changing pick, exclude the current pick's team from "used teams"
+  const effectiveUsedTeams = isChangingPick && currentPick
+    ? status.usedTeams.filter(t => t !== currentPick.teamId)
+    : status.usedTeams;
 
   const selectedTeamData = selectedTeam ? nflTeams.find(t => t.id === selectedTeam) : null;
   const selectedMatchup = selectedTeam ? teamMatchups[selectedTeam] : null;
@@ -132,7 +167,7 @@ export function WeeklyPicker() {
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <h2 className="font-nfl text-2xl text-white">
-            Week {activeSeries.currentWeek} Pick
+            {isChangingPick ? 'Change Your Pick' : `Week ${activeSeries.currentWeek} Pick`}
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-gray-400 text-sm">Lives remaining:</span>
@@ -147,6 +182,20 @@ export function WeeklyPicker() {
               ))}
             </div>
           </div>
+          {isChangingPick && (
+            <button
+              onClick={() => {
+                setIsChangingPick(false);
+                setSelectedTeam(null);
+              }}
+              className="mt-2 text-sm text-gray-400 hover:text-white flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Cancel change
+            </button>
+          )}
         </div>
 
         {/* Countdown Timer */}
@@ -226,7 +275,7 @@ export function WeeklyPicker() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {teams.map((team) => {
                 const isBye = byeTeams.includes(team.id);
-                const isUsed = status.usedTeams.includes(team.id);
+                const isUsed = effectiveUsedTeams.includes(team.id);
                 const matchup = teamMatchups[team.id];
 
                 return (
@@ -305,11 +354,14 @@ export function WeeklyPicker() {
               </div>
 
               <p className="text-center text-gray-400 mb-6">
-                Are you sure you want to pick the{' '}
+                Are you sure you want to {isChangingPick ? 'change your pick to' : 'pick'} the{' '}
                 <span className="text-white font-medium">
                   {selectedTeamData.city} {selectedTeamData.name}
                 </span>
-                ? This cannot be undone.
+                ?{' '}
+                {isChangingPick
+                  ? 'You can change again before the deadline.'
+                  : 'You can change your pick until the deadline.'}
               </p>
 
               <div className="flex gap-3">

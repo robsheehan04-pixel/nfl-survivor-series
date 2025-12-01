@@ -328,6 +328,35 @@ export async function makePick(
   return true;
 }
 
+// Admin function to make a pick on behalf of another user
+export async function adminMakePick(
+  seriesId: string,
+  targetUserId: string,
+  week: number,
+  teamId: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  const { error } = await supabase
+    .from('picks')
+    .upsert({
+      series_id: seriesId,
+      user_id: targetUserId,
+      week,
+      team_id: teamId,
+      is_auto_pick: false,
+    }, {
+      onConflict: 'series_id,user_id,week',
+    });
+
+  if (error) {
+    console.error('Error making admin pick:', error);
+    return false;
+  }
+
+  return true;
+}
+
 export async function updatePickResult(
   seriesId: string,
   week: number,

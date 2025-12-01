@@ -13,37 +13,45 @@ interface TimeLeft {
   total: number;
 }
 
+// Export this function so other components can check deadline status
+export function getNextSaturdayDeadline(): Date {
+  const now = new Date();
+
+  // Create date in EST/EDT
+  const estOffset = -5; // EST is UTC-5 (EDT is UTC-4, but we use EST for consistency)
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const estNow = new Date(utc + (3600000 * estOffset));
+
+  // Find next Saturday
+  const daysUntilSaturday = (6 - estNow.getDay() + 7) % 7;
+  const saturday = new Date(estNow);
+
+  if (daysUntilSaturday === 0) {
+    // It's Saturday - check if we're past 1 PM
+    if (estNow.getHours() >= 13) {
+      saturday.setDate(saturday.getDate() + 7);
+    }
+  } else {
+    saturday.setDate(saturday.getDate() + daysUntilSaturday);
+  }
+
+  // Set to 1 PM EST
+  saturday.setHours(13, 0, 0, 0);
+
+  // Convert back to local time
+  const deadlineUTC = saturday.getTime() - (3600000 * estOffset);
+  return new Date(deadlineUTC - (now.getTimezoneOffset() * 60000));
+}
+
+// Check if the current week's deadline has passed
+export function isDeadlinePassed(): boolean {
+  const deadline = getNextSaturdayDeadline();
+  const now = new Date();
+  return now >= deadline;
+}
+
 export function CountdownTimer({ compact = false }: CountdownTimerProps) {
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft());
-
-  function getNextSaturdayDeadline(): Date {
-    const now = new Date();
-
-    // Create date in EST/EDT
-    const estOffset = -5; // EST is UTC-5 (EDT is UTC-4, but we use EST for consistency)
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const estNow = new Date(utc + (3600000 * estOffset));
-
-    // Find next Saturday
-    const daysUntilSaturday = (6 - estNow.getDay() + 7) % 7;
-    const saturday = new Date(estNow);
-
-    if (daysUntilSaturday === 0) {
-      // It's Saturday - check if we're past 1 PM
-      if (estNow.getHours() >= 13) {
-        saturday.setDate(saturday.getDate() + 7);
-      }
-    } else {
-      saturday.setDate(saturday.getDate() + daysUntilSaturday);
-    }
-
-    // Set to 1 PM EST
-    saturday.setHours(13, 0, 0, 0);
-
-    // Convert back to local time
-    const deadlineUTC = saturday.getTime() - (3600000 * estOffset);
-    return new Date(deadlineUTC - (now.getTimezoneOffset() * 60000));
-  }
 
   function calculateTimeLeft(): TimeLeft {
     const deadline = getNextSaturdayDeadline();
