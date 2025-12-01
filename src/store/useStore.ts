@@ -30,6 +30,7 @@ interface AppState {
   loadUserSeries: () => Promise<void>;
   joinSeries: (seriesId: string) => Promise<void>;
   leaveSeries: (seriesId: string) => Promise<void>;
+  deleteSeries: (seriesId: string) => Promise<boolean>;
   setActiveSeries: (seriesId: string | null) => void;
   refreshActiveSeries: () => Promise<void>;
   updateSeriesSettings: (seriesId: string, settings: { prizeValue?: number; showPrizeValue?: boolean }) => Promise<void>;
@@ -212,6 +213,35 @@ export const useStore = create<AppState>()(
           }),
           activeSeries: activeSeries?.id === seriesId ? null : activeSeries,
         });
+      },
+
+      deleteSeries: async (seriesId) => {
+        const { user, series, activeSeries } = get();
+        if (!user) return false;
+
+        // Check if user is the creator
+        const targetSeries = series.find(s => s.id === seriesId);
+        if (!targetSeries || targetSeries.createdBy !== user.id) {
+          return false;
+        }
+
+        if (isSupabaseConfigured()) {
+          const success = await db.deleteSeries(seriesId);
+          if (success) {
+            set({
+              series: series.filter(s => s.id !== seriesId),
+              activeSeries: activeSeries?.id === seriesId ? null : activeSeries,
+            });
+          }
+          return success;
+        }
+
+        // Local-only mode
+        set({
+          series: series.filter(s => s.id !== seriesId),
+          activeSeries: activeSeries?.id === seriesId ? null : activeSeries,
+        });
+        return true;
       },
 
       setActiveSeries: (seriesId) => {

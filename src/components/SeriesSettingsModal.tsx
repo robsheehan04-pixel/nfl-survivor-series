@@ -8,10 +8,14 @@ interface SeriesSettingsModalProps {
 }
 
 export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProps) {
-  const { activeSeries, updateSeriesSettings } = useStore();
+  const { activeSeries, updateSeriesSettings, deleteSeries, user } = useStore();
   const [prizeValue, setPrizeValue] = useState('');
   const [showPrizeValue, setShowPrizeValue] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const isCreator = activeSeries && user && activeSeries.createdBy === user.id;
 
   useEffect(() => {
     if (activeSeries) {
@@ -36,6 +40,19 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
       setSaved(false);
       onClose();
     }, 1000);
+  };
+
+  const handleDelete = async () => {
+    if (!activeSeries) return;
+
+    setIsDeleting(true);
+    const success = await deleteSeries(activeSeries.id);
+    setIsDeleting(false);
+
+    if (success) {
+      setShowDeleteConfirm(false);
+      onClose();
+    }
   };
 
   if (!activeSeries) return null;
@@ -152,6 +169,51 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
                       <span className="text-2xl font-bold text-white">{activeSeries.members.length}</span>
                     </div>
                   </div>
+
+                  {/* Delete Series (only for creator) */}
+                  {isCreator && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+                      {!showDeleteConfirm ? (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-red-400">Delete Series</p>
+                            <p className="text-xs text-gray-400">Permanently delete this series and all data</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm text-red-400">
+                            Are you sure? This will permanently delete "{activeSeries.name}" and cannot be undone.
+                          </p>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowDeleteConfirm(false)}
+                              className="flex-1 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors"
+                              disabled={isDeleting}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDelete}
+                              disabled={isDeleting}
+                              className="flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                              {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Submit */}
                   <div className="flex gap-3 pt-2">

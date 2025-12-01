@@ -379,6 +379,26 @@ export async function updateSeriesSettings(
 }
 
 // ============================================
+// DELETE SERIES
+// ============================================
+
+export async function deleteSeries(seriesId: string): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  const { error } = await supabase
+    .from('series')
+    .delete()
+    .eq('id', seriesId);
+
+  if (error) {
+    console.error('Error deleting series:', error);
+    return false;
+  }
+
+  return true;
+}
+
+// ============================================
 // INVITATION OPERATIONS
 // ============================================
 
