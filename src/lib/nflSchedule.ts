@@ -1,6 +1,8 @@
 // NFL Schedule and Odds Service
 // This provides matchup data, bye weeks, and Vegas odds for the current week
 
+export type OddsFormat = 'american' | 'decimal' | 'fractional';
+
 export interface GameMatchup {
   homeTeam: string;
   awayTeam: string;
@@ -119,17 +121,31 @@ export function getTeamSpread(teamId: string, week: number): number | null {
   return -matchup.homeSpread;
 }
 
+// Get team moneyline
+export function getTeamMoneyline(teamId: string, week: number): number | null {
+  const matchup = getTeamMatchup(teamId, week);
+  if (!matchup) return null;
+
+  const id = teamId.toLowerCase();
+  if (matchup.homeTeam === id) {
+    return matchup.homeMoneyline;
+  }
+  return matchup.awayMoneyline;
+}
+
 // Get full matchup info for a team (for TeamCard display)
-export function getTeamMatchupInfo(teamId: string, week: number): { opponent: string; isHome: boolean; spread: number } | null {
+export function getTeamMatchupInfo(teamId: string, week: number): { opponent: string; isHome: boolean; spread: number; moneyline: number } | null {
   const opponent = getOpponent(teamId, week);
   const spread = getTeamSpread(teamId, week);
+  const moneyline = getTeamMoneyline(teamId, week);
 
-  if (!opponent || spread === null) return null;
+  if (!opponent || spread === null || moneyline === null) return null;
 
   return {
     opponent: opponent.opponent,
     isHome: opponent.isHome,
     spread,
+    moneyline,
   };
 }
 
@@ -179,4 +195,48 @@ export function moneylineToWinProbability(ml: number): number {
     return Math.abs(ml) / (Math.abs(ml) + 100);
   }
   return 100 / (ml + 100);
+}
+
+// Convert American odds to decimal odds
+export function americanToDecimal(ml: number): number {
+  if (ml < 0) {
+    return 1 + (100 / Math.abs(ml));
+  }
+  return 1 + (ml / 100);
+}
+
+// Convert American odds to fractional odds
+export function americanToFractional(ml: number): string {
+  let numerator: number;
+  let denominator: number;
+
+  if (ml < 0) {
+    numerator = 100;
+    denominator = Math.abs(ml);
+  } else {
+    numerator = ml;
+    denominator = 100;
+  }
+
+  // Simplify the fraction using GCD
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(numerator, denominator);
+  numerator = numerator / divisor;
+  denominator = denominator / divisor;
+
+  return `${numerator}/${denominator}`;
+}
+
+// Format odds based on user preference
+export function formatOdds(moneyline: number, format: OddsFormat): string {
+  switch (format) {
+    case 'american':
+      return moneyline > 0 ? `+${moneyline}` : `${moneyline}`;
+    case 'decimal':
+      return americanToDecimal(moneyline).toFixed(2);
+    case 'fractional':
+      return americanToFractional(moneyline);
+    default:
+      return moneyline > 0 ? `+${moneyline}` : `${moneyline}`;
+  }
 }

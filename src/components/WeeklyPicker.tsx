@@ -4,10 +4,10 @@ import { useStore } from '../store/useStore';
 import { nflTeams, NFLTeam } from '../data/nflTeams';
 import { TeamCard } from './TeamCard';
 import { CountdownTimer } from './CountdownTimer';
-import { isTeamOnBye, getTeamMatchupInfo } from '../lib/nflSchedule';
+import { isTeamOnBye, getTeamMatchupInfo, OddsFormat } from '../lib/nflSchedule';
 
 export function WeeklyPicker() {
-  const { activeSeries, user, makePick, getUserSeriesStatus } = useStore();
+  const { activeSeries, user, makePick, getUserSeriesStatus, oddsFormat, setOddsFormat } = useStore();
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'AFC' | 'NFC'>('all');
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -32,7 +32,7 @@ export function WeeklyPicker() {
 
   // Get matchup info for all teams
   const teamMatchups = useMemo(() => {
-    const matchups: Record<string, { opponent: string; isHome: boolean; spread: number } | null> = {};
+    const matchups: Record<string, { opponent: string; isHome: boolean; spread: number; moneyline: number } | null> = {};
     nflTeams.forEach(team => {
       matchups[team.id] = getTeamMatchupInfo(team.id, currentWeek);
     });
@@ -98,6 +98,7 @@ export function WeeklyPicker() {
               isSelected
               showResult={currentPick.result}
               matchup={matchup}
+              oddsFormat={oddsFormat}
               size="lg"
             />
           </div>
@@ -183,19 +184,35 @@ export function WeeklyPicker() {
         ))}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-green-500/20 rounded" />
-          <span>Favored (negative spread)</span>
+      {/* Legend and Odds Format Selector */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-emerald-800 rounded" />
+            <span>Favored</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-red-700 rounded" />
+            <span>Underdog</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 bg-gray-600 rounded" />
+            <span>Already used / Bye</span>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-red-500/20 rounded" />
-          <span>Underdog (positive spread)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 bg-gray-600 rounded" />
-          <span>Already used / Bye week</span>
+
+        {/* Odds Format Selector */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">Odds:</span>
+          <select
+            value={oddsFormat}
+            onChange={(e) => setOddsFormat(e.target.value as OddsFormat)}
+            className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="american" className="bg-gray-800">American (-110)</option>
+            <option value="decimal" className="bg-gray-800">Decimal (1.91)</option>
+            <option value="fractional" className="bg-gray-800">Fractional (10/11)</option>
+          </select>
         </div>
       </div>
 
@@ -220,6 +237,7 @@ export function WeeklyPicker() {
                     isUsed={isUsed}
                     isBye={isBye}
                     matchup={matchup}
+                    oddsFormat={oddsFormat}
                     onClick={() => {
                       if (!isUsed && !isBye) {
                         setSelectedTeam(team.id);
@@ -281,6 +299,7 @@ export function WeeklyPicker() {
                   team={selectedTeamData}
                   isSelected
                   matchup={selectedMatchup}
+                  oddsFormat={oddsFormat}
                   size="lg"
                 />
               </div>

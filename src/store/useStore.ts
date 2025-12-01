@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { User, Series, SeriesMember, Pick, Invitation } from '../types';
 import { isSupabaseConfigured } from '../lib/supabase';
 import * as db from '../lib/database';
+import { OddsFormat } from '../lib/nflSchedule';
 
 interface AppState {
   // Auth
@@ -16,6 +17,9 @@ interface AppState {
   // UI State
   isLoading: boolean;
   error: string | null;
+
+  // User Preferences
+  oddsFormat: OddsFormat;
 
   // Auth actions
   setUser: (user: User | null) => Promise<void>;
@@ -44,6 +48,7 @@ interface AppState {
   // Utility
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setOddsFormat: (format: OddsFormat) => void;
   getUserSeriesStatus: (seriesId: string) => {
     member: SeriesMember | null;
     usedTeams: string[];
@@ -67,6 +72,7 @@ export const useStore = create<AppState>()(
       activeSeries: null,
       isLoading: false,
       error: null,
+      oddsFormat: 'american',
       _pendingInvitations: [],
 
       // Auth actions
@@ -495,6 +501,7 @@ export const useStore = create<AppState>()(
       // Utility
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error }),
+      setOddsFormat: (format) => set({ oddsFormat: format }),
 
       getUserSeriesStatus: (seriesId) => {
         const { user, series } = get();
@@ -542,6 +549,7 @@ export const useStore = create<AppState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
         series: isSupabaseConfigured() ? [] : state.series, // Don't persist series if using Supabase
+        oddsFormat: state.oddsFormat,
       }),
     }
   )

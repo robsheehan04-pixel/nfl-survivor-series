@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
 import { NFLTeam, getTeamById } from '../data/nflTeams';
+import { OddsFormat, formatOdds } from '../lib/nflSchedule';
 
 interface MatchupInfo {
   opponent: string;
   isHome: boolean;
   spread: number;
+  moneyline: number;
 }
 
 interface TeamCardProps {
@@ -14,6 +16,7 @@ interface TeamCardProps {
   isDisabled?: boolean;
   isBye?: boolean;
   matchup?: MatchupInfo | null;
+  oddsFormat?: OddsFormat;
   showResult?: 'win' | 'loss' | 'pending';
   onClick?: () => void;
   size?: 'sm' | 'md' | 'lg';
@@ -26,6 +29,7 @@ export function TeamCard({
   isDisabled = false,
   isBye = false,
   matchup,
+  oddsFormat = 'american',
   showResult,
   onClick,
   size = 'md',
@@ -50,11 +54,6 @@ export function TeamCard({
 
   const disabled = isDisabled || isUsed || isBye;
   const opponentTeam = matchup ? getTeamById(matchup.opponent) : null;
-
-  const formatSpread = (spread: number): string => {
-    if (spread === 0) return 'EVEN';
-    return spread > 0 ? `+${spread}` : `${spread}`;
-  };
 
   return (
     <motion.button
@@ -151,17 +150,17 @@ export function TeamCard({
           </div>
         )}
 
-        {/* Vegas spread */}
+        {/* Vegas odds */}
         {matchup && !isBye && size !== 'sm' && (
           <div
             className={`
               mt-1 px-2 py-0.5 rounded text-xs font-bold
-              ${matchup.spread < 0 ? 'bg-emerald-800 text-white' :
-                matchup.spread > 0 ? 'bg-red-700 text-white' :
+              ${matchup.moneyline < 0 ? 'bg-emerald-800 text-white' :
+                matchup.moneyline > 0 ? 'bg-red-700 text-white' :
                 'bg-gray-600 text-white'}
             `}
           >
-            {formatSpread(matchup.spread)}
+            {formatOdds(matchup.moneyline, oddsFormat)}
           </div>
         )}
 
