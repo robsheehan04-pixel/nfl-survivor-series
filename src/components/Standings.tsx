@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { nflTeams } from '../data/nflTeams';
 import { SeriesMember } from '../types';
+import { getTeamMatchup } from '../lib/nflSchedule';
 
 export function Standings() {
   const { activeSeries, user } = useStore();
@@ -24,6 +25,18 @@ export function Standings() {
     });
   }, [activeSeries]);
 
+  // Calculate the weeks to display based on series settings
+  const weeksToDisplay = useMemo(() => {
+    if (!activeSeries) return [];
+    const startWeek = activeSeries.settings?.startingWeek || 1;
+    const currentWeek = activeSeries.currentWeek;
+    const weeks: number[] = [];
+    for (let w = startWeek; w <= currentWeek; w++) {
+      weeks.push(w);
+    }
+    return weeks;
+  }, [activeSeries]);
+
   if (!activeSeries) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -38,20 +51,44 @@ export function Standings() {
   const getLosses = (member: SeriesMember) =>
     member.picks.filter(p => p.result === 'loss').length;
 
-  const getStreak = (member: SeriesMember) => {
-    const picks = [...member.picks].sort((a, b) => b.week - a.week);
-    if (picks.length === 0) return null;
+  // Get pick info for a member and week
+  const getPickInfo = (member: SeriesMember, week: number) => {
+    const pick = member.picks.find(p => p.week === week);
+    if (!pick) return null;
 
-    const streakResult = picks[0].result;
-    if (streakResult === 'pending') return null;
+    const team = nflTeams.find(t => t.id === pick.teamId);
+    if (!team) return null;
 
-    let count = 0;
-    for (const pick of picks) {
-      if (pick.result === streakResult) count++;
-      else break;
+    // Get matchup info for that week
+    const matchup = getTeamMatchup(pick.teamId, week);
+    let opponent = null;
+    let isHome = false;
+    let homeScore: number | undefined;
+    let awayScore: number | undefined;
+
+    if (matchup) {
+      const teamIdLower = pick.teamId.toLowerCase();
+      if (matchup.homeTeam === teamIdLower) {
+        opponent = nflTeams.find(t => t.id.toLowerCase() === matchup.awayTeam);
+        isHome = true;
+        homeScore = matchup.homeScore;
+        awayScore = matchup.awayScore;
+      } else {
+        opponent = nflTeams.find(t => t.id.toLowerCase() === matchup.homeTeam);
+        isHome = false;
+        homeScore = matchup.awayScore;
+        awayScore = matchup.homeScore;
+      }
     }
 
-    return { type: streakResult, count };
+    return {
+      pick,
+      team,
+      opponent,
+      isHome,
+      teamScore: homeScore,
+      opponentScore: awayScore,
+    };
   };
 
   return (
@@ -66,136 +103,162 @@ export function Standings() {
         </div>
       </div>
 
-      {/* Standings Table */}
+      {/* Week-by-Week Picks Table */}
       <div className="card overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="border-b border-white/10 text-left">
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Rank
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider">
+              <tr className="border-b border-white/10">
+                {/* Player column header */}
+                <th className="sticky left-0 z-10 bg-[#1a1a2e] px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[180px]">
                   Player
                 </th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
-                  Lives
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
-                  W-L
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center hidden sm:table-cell">
-                  Streak
-                </th>
-                <th className="px-4 py-3 text-xs font-medium text-gray-400 uppercase tracking-wider text-center hidden md:table-cell">
-                  This Week
+                {/* Week column headers */}
+                {weeksToDisplay.map(week => (
+                  <th
+                    key={week}
+                    className="px-2 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[100px]"
+                  >
+                    Week {week}
+                  </th>
+                ))}
+                {/* Record column */}
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider min-w-[80px]">
+                  Record
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {sortedMembers.map((member, index) => {
                 const isCurrentUser = member.userId === user?.id;
-                const streak = getStreak(member);
-                const currentPick = member.picks.find(p => p.week === activeSeries.currentWeek);
-                const currentTeam = currentPick ? nflTeams.find(t => t.id === currentPick.teamId) : null;
 
                 return (
                   <motion.tr
                     key={member.userId}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
+                    transition={{ delay: index * 0.03 }}
                     className={`
                       ${isCurrentUser ? 'bg-blue-500/10' : ''}
-                      ${member.isEliminated ? 'opacity-50' : ''}
+                      ${member.isEliminated ? 'opacity-60' : ''}
                     `}
                   >
-                    <td className="px-4 py-4">
-                      <span className={`
-                        inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
-                        ${index === 0 && !member.isEliminated ? 'bg-yellow-500/20 text-yellow-400' : ''}
-                        ${index === 1 && !member.isEliminated ? 'bg-gray-400/20 text-gray-300' : ''}
-                        ${index === 2 && !member.isEliminated ? 'bg-orange-500/20 text-orange-400' : ''}
-                        ${index > 2 || member.isEliminated ? 'bg-white/5 text-gray-400' : ''}
-                      `}>
-                        {member.isEliminated ? '—' : index + 1}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
+                    {/* Player info - sticky column */}
+                    <td className="sticky left-0 z-10 bg-[#1a1a2e] px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={member.userPicture}
-                          alt={member.userName}
-                          className="w-10 h-10 rounded-full border-2 border-white/10"
-                        />
-                        <div>
-                          <p className="font-medium text-white flex items-center gap-2">
+                        {member.userPicture ? (
+                          <img
+                            src={member.userPicture}
+                            alt={member.userName}
+                            className="w-8 h-8 rounded-full border border-white/10"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-sm">
+                            {member.userName[0]}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-medium text-white text-sm truncate flex items-center gap-2">
                             {member.userName}
                             {isCurrentUser && (
-                              <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full">
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
                                 You
                               </span>
                             )}
                           </p>
-                          {member.isEliminated && (
-                            <p className="text-xs text-red-400">Eliminated</p>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {/* Lives indicator */}
+                            <div className="flex gap-0.5">
+                              {[...Array(activeSeries.settings?.livesPerPlayer || 2)].map((_, i) => (
+                                <span
+                                  key={i}
+                                  className={`w-2 h-2 rounded-full ${
+                                    i < member.livesRemaining ? 'bg-red-500' : 'bg-gray-600'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            {member.isEliminated && (
+                              <span className="text-xs text-red-400">Eliminated</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center">
-                      <div className="flex justify-center gap-1">
-                        {[...Array(2)].map((_, i) => (
-                          <span
-                            key={i}
-                            className={`
-                              w-3 h-3 rounded-full transition-all
-                              ${i < member.livesRemaining ? 'bg-red-500' : 'bg-gray-600'}
-                            `}
-                          />
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center">
-                      <span className="font-medium text-white">
+
+                    {/* Week picks */}
+                    {weeksToDisplay.map(week => {
+                      const pickInfo = getPickInfo(member, week);
+
+                      if (!pickInfo) {
+                        return (
+                          <td key={week} className="px-2 py-3 text-center">
+                            <div className="flex items-center justify-center">
+                              <span className="text-gray-600 text-xs">—</span>
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      const { pick, team, opponent, isHome, teamScore, opponentScore } = pickInfo;
+                      const hasScore = teamScore !== undefined && opponentScore !== undefined;
+
+                      return (
+                        <td
+                          key={week}
+                          className={`px-2 py-2 text-center ${
+                            pick.result === 'win'
+                              ? 'bg-green-500/20'
+                              : pick.result === 'loss'
+                              ? 'bg-red-500/20'
+                              : 'bg-yellow-500/10'
+                          }`}
+                        >
+                          <div className="flex flex-col items-center gap-1">
+                            {/* Team logo and name */}
+                            <div className="flex items-center gap-1.5">
+                              <img
+                                src={team.logo}
+                                alt={team.name}
+                                className="w-6 h-6 object-contain"
+                              />
+                              <span className="text-xs font-medium text-white">
+                                {team.abbreviation}
+                              </span>
+                            </div>
+
+                            {/* Opponent */}
+                            {opponent && (
+                              <div className="text-[10px] text-gray-400">
+                                {isHome ? 'vs' : '@'} {opponent.abbreviation}
+                              </div>
+                            )}
+
+                            {/* Score if available */}
+                            {hasScore && (
+                              <div className={`text-[10px] font-medium ${
+                                pick.result === 'win' ? 'text-green-400' :
+                                pick.result === 'loss' ? 'text-red-400' :
+                                'text-gray-400'
+                              }`}>
+                                {teamScore} - {opponentScore}
+                              </div>
+                            )}
+
+                            {/* Result badge for pending */}
+                            {pick.result === 'pending' && !hasScore && (
+                              <span className="text-[10px] text-yellow-400">Pending</span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+
+                    {/* Record column */}
+                    <td className="px-4 py-3 text-center">
+                      <span className="font-bold text-white">
                         {getWins(member)}-{getLosses(member)}
                       </span>
-                    </td>
-                    <td className="px-4 py-4 text-center hidden sm:table-cell">
-                      {streak ? (
-                        <span className={`
-                          text-sm font-medium
-                          ${streak.type === 'win' ? 'text-green-400' : 'text-red-400'}
-                        `}>
-                          {streak.count}{streak.type === 'win' ? 'W' : 'L'}
-                        </span>
-                      ) : (
-                        <span className="text-gray-500">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-4 text-center hidden md:table-cell">
-                      {currentTeam ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <img
-                            src={currentTeam.logo}
-                            alt={currentTeam.name}
-                            className="w-8 h-8 object-contain"
-                          />
-                          <span className="text-sm text-gray-400">
-                            {currentTeam.abbreviation}
-                          </span>
-                          {currentPick?.result !== 'pending' && (
-                            <span className={`
-                              text-xs px-1.5 py-0.5 rounded
-                              ${currentPick?.result === 'win' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}
-                            `}>
-                              {currentPick?.result === 'win' ? 'W' : 'L'}
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-500 text-sm">No pick yet</span>
-                      )}
                     </td>
                   </motion.tr>
                 );
@@ -205,56 +268,19 @@ export function Standings() {
         </div>
       </div>
 
-      {/* Pick History */}
-      <div className="card">
-        <h3 className="font-nfl text-lg text-white mb-4">Your Pick History</h3>
-        <div className="flex flex-wrap gap-2">
-          {activeSeries.members
-            .find(m => m.userId === user?.id)
-            ?.picks.sort((a, b) => a.week - b.week)
-            .map(pick => {
-              const team = nflTeams.find(t => t.id === pick.teamId);
-              if (!team) return null;
-
-              return (
-                <motion.div
-                  key={pick.week}
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  className={`
-                    flex items-center gap-2 px-3 py-2 rounded-lg border
-                    ${pick.result === 'win' ? 'bg-green-500/10 border-green-500/30' : ''}
-                    ${pick.result === 'loss' ? 'bg-red-500/10 border-red-500/30' : ''}
-                    ${pick.result === 'pending' ? 'bg-yellow-500/10 border-yellow-500/30' : ''}
-                  `}
-                >
-                  <span className="text-xs text-gray-400">W{pick.week}</span>
-                  <img
-                    src={team.logo}
-                    alt={team.name}
-                    className="w-6 h-6 object-contain"
-                  />
-                  <span className={`
-                    text-xs font-medium
-                    ${pick.result === 'win' ? 'text-green-400' : ''}
-                    ${pick.result === 'loss' ? 'text-red-400' : ''}
-                    ${pick.result === 'pending' ? 'text-yellow-400' : ''}
-                  `}>
-                    {pick.result === 'win' && 'W'}
-                    {pick.result === 'loss' && 'L'}
-                    {pick.result === 'pending' && '?'}
-                  </span>
-                  {pick.isAutoPick && (
-                    <span className="text-xs text-gray-500" title="Auto-pick">
-                      ⚡
-                    </span>
-                  )}
-                </motion.div>
-              );
-            })}
-          {!activeSeries.members.find(m => m.userId === user?.id)?.picks.length && (
-            <p className="text-gray-500 text-sm">No picks yet</p>
-          )}
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-gray-400">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/30" />
+          <span>Win</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-red-500/20 border border-red-500/30" />
+          <span>Loss</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-yellow-500/10 border border-yellow-500/30" />
+          <span>Pending</span>
         </div>
       </div>
     </div>
