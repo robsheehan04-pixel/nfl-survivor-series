@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS series (
   current_week INTEGER DEFAULT 1,
   season INTEGER DEFAULT EXTRACT(YEAR FROM NOW()),
   is_active BOOLEAN DEFAULT true,
+  prize_value DECIMAL(10, 2) DEFAULT 0,
+  show_prize_value BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

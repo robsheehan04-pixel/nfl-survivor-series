@@ -251,6 +251,8 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
     isActive: seriesData.is_active,
     members,
     invitations,
+    prizeValue: seriesData.prize_value || 0,
+    showPrizeValue: seriesData.show_prize_value || false,
   };
 }
 
@@ -343,6 +345,33 @@ export async function updatePickResult(
 
   if (error) {
     console.error('Error updating pick result:', error);
+    return false;
+  }
+
+  return true;
+}
+
+// ============================================
+// SERIES SETTINGS
+// ============================================
+
+export async function updateSeriesSettings(
+  seriesId: string,
+  settings: { prizeValue?: number; showPrizeValue?: boolean }
+): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  const updateData: Record<string, unknown> = {};
+  if (settings.prizeValue !== undefined) updateData.prize_value = settings.prizeValue;
+  if (settings.showPrizeValue !== undefined) updateData.show_prize_value = settings.showPrizeValue;
+
+  const { error } = await supabase
+    .from('series')
+    .update(updateData)
+    .eq('id', seriesId);
+
+  if (error) {
+    console.error('Error updating series settings:', error);
     return false;
   }
 

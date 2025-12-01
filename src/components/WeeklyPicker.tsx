@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { nflTeams, NFLTeam } from '../data/nflTeams';
 import { TeamCard } from './TeamCard';
+import { CountdownTimer } from './CountdownTimer';
+import { isTeamOnBye, getTeamMatchupInfo } from '../lib/nflSchedule';
 
 export function WeeklyPicker() {
   const { activeSeries, user, makePick, getUserSeriesStatus } = useStore();
@@ -11,6 +13,7 @@ export function WeeklyPicker() {
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const status = activeSeries ? getUserSeriesStatus(activeSeries.id) : null;
+  const currentWeek = activeSeries?.currentWeek || 1;
 
   const filteredTeams = useMemo(() => {
     if (filter === 'all') return nflTeams;
@@ -27,24 +30,19 @@ export function WeeklyPicker() {
     return groups;
   }, [filteredTeams]);
 
-  // Calculate deadline (Saturday 1 PM)
-  const getNextDeadline = () => {
-    const now = new Date();
-    const saturday = new Date(now);
-    const dayOfWeek = now.getDay();
-    const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
-    saturday.setDate(now.getDate() + daysUntilSaturday);
-    saturday.setHours(13, 0, 0, 0);
-    if (saturday <= now) {
-      saturday.setDate(saturday.getDate() + 7);
-    }
-    return saturday;
-  };
+  // Get matchup info for all teams
+  const teamMatchups = useMemo(() => {
+    const matchups: Record<string, { opponent: string; isHome: boolean; spread: number } | null> = {};
+    nflTeams.forEach(team => {
+      matchups[team.id] = getTeamMatchupInfo(team.id, currentWeek);
+    });
+    return matchups;
+  }, [currentWeek]);
 
-  const deadline = getNextDeadline();
-  const timeUntilDeadline = deadline.getTime() - Date.now();
-  const hoursRemaining = Math.floor(timeUntilDeadline / (1000 * 60 * 60));
-  const isUrgent = hoursRemaining < 24;
+  // Get bye teams for current week
+  const byeTeams = useMemo(() => {
+    return nflTeams.filter(team => isTeamOnBye(team.id, currentWeek)).map(t => t.id);
+  }, [currentWeek]);
 
   if (!activeSeries || !user) {
     return (
@@ -82,6 +80,7 @@ export function WeeklyPicker() {
 
   if (currentPick) {
     const pickedTeam = nflTeams.find(t => t.id === currentPick.teamId);
+    const matchup = pickedTeam ? teamMatchups[pickedTeam.id] : null;
 
     return (
       <motion.div
@@ -98,13 +97,14 @@ export function WeeklyPicker() {
               team={pickedTeam}
               isSelected
               showResult={currentPick.result}
+              matchup={matchup}
               size="lg"
             />
           </div>
         )}
         {currentPick.isAutoPick && (
           <p className="text-yellow-400 text-sm mt-4">
-            ⚠ This was an auto-pick based on Vegas odds
+            This was an auto-pick based on Vegas odds
           </p>
         )}
         <p className="text-gray-400 text-sm mt-2">
@@ -123,11 +123,12 @@ export function WeeklyPicker() {
   };
 
   const selectedTeamData = selectedTeam ? nflTeams.find(t => t.id === selectedTeam) : null;
+  const selectedMatchup = selectedTeam ? teamMatchups[selectedTeam] : null;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         <div>
           <h2 className="font-nfl text-2xl text-white">
             Week {activeSeries.currentWeek} Pick
@@ -147,21 +148,21 @@ export function WeeklyPicker() {
           </div>
         </div>
 
-        {/* Deadline warning */}
-        <div
-          className={`
-            px-4 py-2 rounded-lg flex items-center gap-2
-            ${isUrgent ? 'bg-red-500/20 text-red-400 deadline-warning' : 'bg-blue-500/20 text-blue-400'}
-          `}
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span className="text-sm font-medium">
-            {isUrgent ? `${hoursRemaining}h remaining!` : `Deadline: Saturday 1:00 PM`}
-          </span>
+        {/* Countdown Timer */}
+        <div className="lg:w-64">
+          <CountdownTimer />
         </div>
       </div>
+
+      {/* Bye week notice */}
+      {byeTeams.length > 0 && (
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <p className="text-yellow-400 text-sm">
+            <span className="font-medium">Week {currentWeek} Bye Teams:</span>{' '}
+            {byeTeams.map(id => nflTeams.find(t => t.id === id)?.name).join(', ')}
+          </p>
+        </div>
+      )}
 
       {/* Filter buttons */}
       <div className="flex gap-2">
@@ -182,6 +183,22 @@ export function WeeklyPicker() {
         ))}
       </div>
 
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-green-500/20 rounded" />
+          <span>Favored (negative spread)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-red-500/20 rounded" />
+          <span>Underdog (positive spread)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 bg-gray-600 rounded" />
+          <span>Already used / Bye week</span>
+        </div>
+      </div>
+
       {/* Teams Grid */}
       <div className="space-y-8">
         {Object.entries(groupedTeams).map(([division, teams]) => (
@@ -190,19 +207,27 @@ export function WeeklyPicker() {
               {division}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {teams.map((team) => (
-                <TeamCard
-                  key={team.id}
-                  team={team}
-                  isSelected={selectedTeam === team.id}
-                  isUsed={status.usedTeams.includes(team.id)}
-                  onClick={() => {
-                    if (!status.usedTeams.includes(team.id)) {
-                      setSelectedTeam(team.id);
-                    }
-                  }}
-                />
-              ))}
+              {teams.map((team) => {
+                const isBye = byeTeams.includes(team.id);
+                const isUsed = status.usedTeams.includes(team.id);
+                const matchup = teamMatchups[team.id];
+
+                return (
+                  <TeamCard
+                    key={team.id}
+                    team={team}
+                    isSelected={selectedTeam === team.id}
+                    isUsed={isUsed}
+                    isBye={isBye}
+                    matchup={matchup}
+                    onClick={() => {
+                      if (!isUsed && !isBye) {
+                        setSelectedTeam(team.id);
+                      }
+                    }}
+                  />
+                );
+              })}
             </div>
           </div>
         ))}
@@ -252,7 +277,12 @@ export function WeeklyPicker() {
               </h3>
 
               <div className="flex justify-center mb-6">
-                <TeamCard team={selectedTeamData} isSelected size="lg" />
+                <TeamCard
+                  team={selectedTeamData}
+                  isSelected
+                  matchup={selectedMatchup}
+                  size="lg"
+                />
               </div>
 
               <p className="text-center text-gray-400 mb-6">

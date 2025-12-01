@@ -16,6 +16,8 @@ export interface Series {
   isActive: boolean;
   members: SeriesMember[];
   invitations: Invitation[];
+  prizeValue?: number;
+  showPrizeValue?: boolean;
 }
 
 export interface SeriesMember {

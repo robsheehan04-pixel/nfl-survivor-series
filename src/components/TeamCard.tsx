@@ -1,11 +1,19 @@
 import { motion } from 'framer-motion';
-import { NFLTeam } from '../data/nflTeams';
+import { NFLTeam, getTeamById } from '../data/nflTeams';
+
+interface MatchupInfo {
+  opponent: string;
+  isHome: boolean;
+  spread: number;
+}
 
 interface TeamCardProps {
   team: NFLTeam;
   isSelected?: boolean;
   isUsed?: boolean;
   isDisabled?: boolean;
+  isBye?: boolean;
+  matchup?: MatchupInfo | null;
   showResult?: 'win' | 'loss' | 'pending';
   onClick?: () => void;
   size?: 'sm' | 'md' | 'lg';
@@ -16,19 +24,21 @@ export function TeamCard({
   isSelected = false,
   isUsed = false,
   isDisabled = false,
+  isBye = false,
+  matchup,
   showResult,
   onClick,
   size = 'md',
 }: TeamCardProps) {
   const sizeClasses = {
     sm: 'p-2 rounded-lg',
-    md: 'p-4 rounded-xl',
+    md: 'p-3 rounded-xl',
     lg: 'p-6 rounded-2xl',
   };
 
   const logoSizes = {
     sm: 'w-10 h-10',
-    md: 'w-16 h-16',
+    md: 'w-12 h-12',
     lg: 'w-24 h-24',
   };
 
@@ -38,7 +48,13 @@ export function TeamCard({
     lg: 'text-base',
   };
 
-  const disabled = isDisabled || isUsed;
+  const disabled = isDisabled || isUsed || isBye;
+  const opponentTeam = matchup ? getTeamById(matchup.opponent) : null;
+
+  const formatSpread = (spread: number): string => {
+    if (spread === 0) return 'EVEN';
+    return spread > 0 ? `+${spread}` : `${spread}`;
+  };
 
   return (
     <motion.button
@@ -47,10 +63,10 @@ export function TeamCard({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       className={`
-        team-card relative overflow-hidden
+        team-card relative overflow-hidden w-full
         ${sizeClasses[size]}
         ${isSelected ? 'selected ring-2 ring-yellow-400' : ''}
-        ${disabled ? 'disabled' : ''}
+        ${disabled ? 'disabled opacity-60' : ''}
         ${!disabled ? 'cursor-pointer' : 'cursor-not-allowed'}
         bg-gradient-to-br from-white/10 to-white/5
         border border-white/10
@@ -79,8 +95,15 @@ export function TeamCard({
         />
       )}
 
+      {/* Bye week overlay */}
+      {isBye && (
+        <div className="absolute inset-0 bg-gray-900/70 z-20 flex items-center justify-center">
+          <span className="text-gray-400 font-bold text-sm uppercase tracking-wider">BYE WEEK</span>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center gap-2">
+      <div className="relative z-10 flex flex-col items-center gap-1">
         {/* Team Logo */}
         <div className={`${logoSizes[size]} relative`}>
           <img
@@ -89,9 +112,9 @@ export function TeamCard({
             className="w-full h-full object-contain drop-shadow-lg"
             loading="lazy"
           />
-          {isUsed && (
+          {isUsed && !isBye && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/60 rounded-full">
-              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
@@ -104,12 +127,43 @@ export function TeamCard({
             {team.city}
           </p>
           <p
-            className={`font-nfl ${size === 'sm' ? 'text-sm' : size === 'md' ? 'text-lg' : 'text-xl'} leading-tight`}
+            className={`font-nfl ${size === 'sm' ? 'text-xs' : size === 'md' ? 'text-sm' : 'text-xl'} leading-tight`}
             style={{ color: team.primaryColor }}
           >
             {team.name}
           </p>
         </div>
+
+        {/* Matchup info */}
+        {matchup && opponentTeam && !isBye && size !== 'sm' && (
+          <div className="mt-1 flex items-center gap-1.5 text-xs">
+            <span className="text-gray-500">
+              {matchup.isHome ? 'vs' : '@'}
+            </span>
+            <img
+              src={opponentTeam.logo}
+              alt={opponentTeam.name}
+              className="w-4 h-4 object-contain"
+            />
+            <span className="text-gray-400 font-medium">
+              {opponentTeam.id}
+            </span>
+          </div>
+        )}
+
+        {/* Vegas spread */}
+        {matchup && !isBye && size !== 'sm' && (
+          <div
+            className={`
+              mt-1 px-2 py-0.5 rounded text-xs font-bold
+              ${matchup.spread < 0 ? 'bg-green-500/20 text-green-400' :
+                matchup.spread > 0 ? 'bg-red-500/20 text-red-400' :
+                'bg-gray-500/20 text-gray-400'}
+            `}
+          >
+            {formatSpread(matchup.spread)}
+          </div>
+        )}
 
         {/* Result indicator */}
         {showResult && (
@@ -128,8 +182,8 @@ export function TeamCard({
         )}
 
         {/* Used badge */}
-        {isUsed && !showResult && (
-          <div className="mt-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400">
+        {isUsed && !showResult && !isBye && (
+          <div className="mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400">
             Already Used
           </div>
         )}

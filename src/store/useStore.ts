@@ -28,6 +28,7 @@ interface AppState {
   leaveSeries: (seriesId: string) => Promise<void>;
   setActiveSeries: (seriesId: string | null) => void;
   refreshActiveSeries: () => Promise<void>;
+  updateSeriesSettings: (seriesId: string, settings: { prizeValue?: number; showPrizeValue?: boolean }) => Promise<void>;
 
   // Invitation actions
   inviteToSeries: (seriesId: string, email: string) => Promise<void>;
@@ -227,6 +228,33 @@ export const useStore = create<AppState>()(
             });
           }
         }
+      },
+
+      updateSeriesSettings: async (seriesId, settings) => {
+        const { series, activeSeries } = get();
+
+        if (isSupabaseConfigured()) {
+          await db.updateSeriesSettings(seriesId, settings);
+          await get().refreshActiveSeries();
+          return;
+        }
+
+        // Local-only mode
+        const updatedSeries = series.map(s => {
+          if (s.id !== seriesId) return s;
+          return {
+            ...s,
+            prizeValue: settings.prizeValue ?? s.prizeValue,
+            showPrizeValue: settings.showPrizeValue ?? s.showPrizeValue,
+          };
+        });
+
+        set({
+          series: updatedSeries,
+          activeSeries: activeSeries?.id === seriesId
+            ? updatedSeries.find(s => s.id === seriesId) || activeSeries
+            : activeSeries,
+        });
       },
 
       // Invitation actions
