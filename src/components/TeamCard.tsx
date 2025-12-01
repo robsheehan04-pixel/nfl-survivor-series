@@ -156,9 +156,9 @@ export function TeamCard({
           <div
             className={`
               mt-1 px-2 py-0.5 rounded text-xs font-bold
-              ${matchup.spread < 0 ? 'bg-green-500/20 text-green-400' :
-                matchup.spread > 0 ? 'bg-red-500/20 text-red-400' :
-                'bg-gray-500/20 text-gray-400'}
+              ${matchup.spread < 0 ? 'bg-emerald-800 text-white' :
+                matchup.spread > 0 ? 'bg-red-700 text-white' :
+                'bg-gray-600 text-white'}
             `}
           >
             {formatSpread(matchup.spread)}
