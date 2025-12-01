@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from './store/useStore';
 import { LoginScreen } from './components/LoginScreen';
@@ -9,7 +9,15 @@ import { CreateSeriesModal } from './components/CreateSeriesModal';
 import { InvitationsModal } from './components/InvitationsModal';
 
 function App() {
-  const { isAuthenticated } = useStore();
+  const { isAuthenticated, user, loadUserSeries, loadPendingInvitations } = useStore();
+
+  // Load user data when app mounts with authenticated user (e.g., page refresh)
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadUserSeries();
+      loadPendingInvitations();
+    }
+  }, [isAuthenticated, user, loadUserSeries, loadPendingInvitations]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = useState(false);
