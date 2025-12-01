@@ -1,5 +1,8 @@
 import { supabase, isSupabaseConfigured } from './supabase';
-import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings } from '../types';
+import { User, Series, SeriesMember, Pick, Invitation, SeriesSettings, defaultSeriesSettings, AppRole, SeriesRole } from '../types';
+
+// Owner email - this user has full access to all series
+const OWNER_EMAIL = 'robsheehan04@gmail.com';
 
 // Database types matching Supabase schema
 interface DbUser {
@@ -18,6 +21,7 @@ interface DbSeriesMember {
   lives_remaining: number;
   is_eliminated: boolean;
   joined_at: string;
+  role: SeriesRole;
   users?: DbUser;
 }
 
@@ -67,11 +71,15 @@ export async function upsertUser(user: User): Promise<User | null> {
     return null;
   }
 
+  // Determine role based on email
+  const role: AppRole = data.email === OWNER_EMAIL ? 'owner' : 'user';
+
   return {
     id: data.id,
     email: data.email,
     name: data.name,
     picture: data.picture || '',
+    role,
   };
 }
 
@@ -86,11 +94,14 @@ export async function getUserByEmail(email: string): Promise<User | null> {
 
   if (error || !data) return null;
 
+  const role: AppRole = data.email === OWNER_EMAIL ? 'owner' : 'user';
+
   return {
     id: data.id,
     email: data.email,
     name: data.name,
     picture: data.picture || '',
+    role,
   };
 }
 
@@ -124,13 +135,14 @@ export async function createSeries(
     return null;
   }
 
-  // Add creator as first member with correct lives based on settings
+  // Add creator as first member with admin role and correct lives based on settings
   const { error: memberError } = await supabase
     .from('series_members')
     .insert({
       series_id: seriesData.id,
       user_id: userId,
       lives_remaining: settings.livesPerPlayer,
+      role: 'admin',
     });
 
   if (memberError) {
@@ -140,8 +152,29 @@ export async function createSeries(
   return fetchSeriesById(seriesData.id);
 }
 
-export async function fetchUserSeries(userId: string): Promise<Series[]> {
+export async function fetchUserSeries(userId: string, userEmail?: string): Promise<Series[]> {
   if (!isSupabaseConfigured() || !supabase) return [];
+
+  console.log('[fetchUserSeries] userId:', userId, 'userEmail:', userEmail, 'OWNER_EMAIL:', OWNER_EMAIL);
+  console.log('[fetchUserSeries] isOwner:', userEmail === OWNER_EMAIL);
+
+  // If user is the owner, fetch ALL series
+  if (userEmail === OWNER_EMAIL) {
+    const { data: allSeriesData, error: allSeriesError } = await supabase
+      .from('series')
+      .select('id');
+
+    console.log('[fetchUserSeries] Owner mode - allSeriesData:', allSeriesData, 'error:', allSeriesError);
+
+    if (allSeriesError || !allSeriesData) {
+      console.error('Error fetching all series:', allSeriesError);
+      return [];
+    }
+
+    const series = await Promise.all(allSeriesData.map(s => fetchSeriesById(s.id)));
+    console.log('[fetchUserSeries] Owner mode - fetched series count:', series.filter(s => s !== null).length);
+    return series.filter((s): s is Series => s !== null);
+  }
 
   // Get series IDs where user is a member
   const { data: memberData, error: memberError } = await supabase
@@ -160,6 +193,24 @@ export async function fetchUserSeries(userId: string): Promise<Series[]> {
   // Fetch full series data
   const series = await Promise.all(seriesIds.map(id => fetchSeriesById(id)));
   return series.filter((s): s is Series => s !== null);
+}
+
+// Update a member's role in a series
+export async function updateMemberRole(seriesId: string, userId: string, role: SeriesRole): Promise<boolean> {
+  if (!isSupabaseConfigured() || !supabase) return false;
+
+  const { error } = await supabase
+    .from('series_members')
+    .update({ role })
+    .eq('series_id', seriesId)
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error updating member role:', error);
+    return false;
+  }
+
+  return true;
 }
 
 export async function fetchSeriesById(seriesId: string): Promise<Series | null> {
@@ -233,6 +284,7 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
       isEliminated: m.is_eliminated,
       joinedAt: new Date(m.joined_at),
       picks: memberPicks,
+      role: (m.role as SeriesRole) || 'member',
     };
   });
 
@@ -272,7 +324,7 @@ export async function fetchSeriesById(seriesId: string): Promise<Series | null> 
 // MEMBER OPERATIONS
 // ============================================
 
-export async function joinSeries(seriesId: string, userId: string): Promise<boolean> {
+export async function joinSeries(seriesId: string, userId: string, role: SeriesRole = 'member'): Promise<boolean> {
   if (!isSupabaseConfigured() || !supabase) return false;
 
   const { error } = await supabase
@@ -280,6 +332,7 @@ export async function joinSeries(seriesId: string, userId: string): Promise<bool
     .insert({
       series_id: seriesId,
       user_id: userId,
+      role,
     });
 
   if (error) {

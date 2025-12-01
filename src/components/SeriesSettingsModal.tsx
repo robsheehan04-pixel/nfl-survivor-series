@@ -19,7 +19,9 @@ export function SeriesSettingsModal({ isOpen, onClose }: SeriesSettingsModalProp
   // League settings
   const [settings, setSettings] = useState<SeriesSettings>(defaultSeriesSettings);
 
-  const isCreator = activeSeries && user && activeSeries.createdBy === user.id;
+  const isSeriesCreator = activeSeries && user && activeSeries.createdBy === user.id;
+  const isAppOwner = user?.role === 'owner';
+  const isCreator = isSeriesCreator || isAppOwner;
 
   useEffect(() => {
     if (activeSeries) {

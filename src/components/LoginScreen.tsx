@@ -26,11 +26,13 @@ export function LoginScreen() {
     if (response.credential) {
       try {
         const decoded = decodeJwt(response.credential);
+        // Role will be determined by database based on email
         await setUser({
           id: decoded.sub,
           email: decoded.email,
           name: decoded.name,
           picture: decoded.picture,
+          role: 'user', // Default role, will be overwritten by database
         });
       } catch (err) {
         console.error('Failed to decode token:', err);
@@ -52,6 +54,7 @@ export function LoginScreen() {
       email: demoEmail.trim(),
       name: demoName.trim(),
       picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(demoName.trim())}&background=random&size=200`,
+      role: 'user', // Demo users are always regular users
     });
   };
 

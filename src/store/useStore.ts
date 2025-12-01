@@ -23,6 +23,7 @@ interface AppState {
 
   // Auth actions
   setUser: (user: User | null) => Promise<void>;
+  refreshUser: () => Promise<void>;
   logout: () => void;
 
   // Series actions
@@ -93,6 +94,24 @@ export const useStore = create<AppState>()(
         set({ user, isAuthenticated: !!user });
       },
 
+      // Refresh user from database to get correct role and reload series
+      refreshUser: async () => {
+        const { user } = get();
+        console.log('[refreshUser] Starting with user:', user?.email);
+        if (!user || !isSupabaseConfigured()) return;
+
+        const dbUser = await db.getUserByEmail(user.email);
+        console.log('[refreshUser] Got dbUser:', dbUser?.email, 'role:', dbUser?.role);
+        if (dbUser) {
+          set({ user: dbUser });
+          // Now load series with the updated user email (important for owner role)
+          console.log('[refreshUser] Calling fetchUserSeries with:', dbUser.id, dbUser.email);
+          const userSeries = await db.fetchUserSeries(dbUser.id, dbUser.email);
+          console.log('[refreshUser] Got series count:', userSeries.length);
+          set({ series: userSeries, isLoading: false });
+        }
+      },
+
       logout: () => set({
         user: null,
         isAuthenticated: false,
@@ -136,6 +155,7 @@ export const useStore = create<AppState>()(
             isEliminated: false,
             joinedAt: new Date(),
             picks: [],
+            role: 'admin' as const,
           }],
           invitations: [],
           settings,
@@ -152,7 +172,8 @@ export const useStore = create<AppState>()(
         set({ isLoading: true });
 
         if (isSupabaseConfigured()) {
-          const userSeries = await db.fetchUserSeries(user.id);
+          // Pass email so owner can see all series
+          const userSeries = await db.fetchUserSeries(user.id, user.email);
           set({ series: userSeries, isLoading: false });
         } else {
           set({ isLoading: false });
@@ -185,6 +206,7 @@ export const useStore = create<AppState>()(
                 isEliminated: false,
                 joinedAt: new Date(),
                 picks: [],
+                role: 'member' as const,
               }],
             };
           }),
@@ -370,6 +392,7 @@ export const useStore = create<AppState>()(
                 isEliminated: false,
                 joinedAt: new Date(),
                 picks: [],
+                role: 'member' as const,
               }],
             };
           }),

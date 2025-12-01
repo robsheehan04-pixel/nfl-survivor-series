@@ -9,15 +9,20 @@ import { CreateSeriesModal } from './components/CreateSeriesModal';
 import { InvitationsModal } from './components/InvitationsModal';
 
 function App() {
-  const { isAuthenticated, user, loadUserSeries, loadPendingInvitations } = useStore();
+  const { isAuthenticated, user, loadPendingInvitations, refreshUser } = useStore();
 
-  // Load user data when app mounts with authenticated user (e.g., page refresh)
+  // Refresh user from database and load data when app mounts with authenticated user (e.g., page refresh)
   useEffect(() => {
-    if (isAuthenticated && user) {
-      loadUserSeries();
-      loadPendingInvitations();
-    }
-  }, [isAuthenticated, user, loadUserSeries, loadPendingInvitations]);
+    const initializeUser = async () => {
+      if (isAuthenticated && user) {
+        // Refresh user to get correct role from database and reload series
+        await refreshUser();
+        // Load pending invitations
+        await loadPendingInvitations();
+      }
+    };
+    initializeUser();
+  }, [isAuthenticated]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isInvitationsModalOpen, setIsInvitationsModalOpen] = useState(false);

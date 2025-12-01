@@ -20,9 +20,13 @@ export function Sidebar({ isOpen, onClose, onCreateSeries, onViewInvitations }: 
 
   const pendingInvitations = getPendingInvitations();
 
-  const mySeries = series.filter(s =>
-    s.members.some(m => m.userId === user?.id)
-  );
+  // If user is owner, show all series. Otherwise, only show series where they're a member.
+  const isAppOwner = user?.role === 'owner';
+  console.log('[Sidebar] user:', user?.email, 'role:', user?.role, 'isAppOwner:', isAppOwner, 'series count:', series.length);
+  const mySeries = isAppOwner
+    ? series
+    : series.filter(s => s.members.some(m => m.userId === user?.id));
+  console.log('[Sidebar] mySeries count:', mySeries.length);
 
   const getMyStatus = (s: Series) => {
     const member = s.members.find(m => m.userId === user?.id);
@@ -35,7 +39,7 @@ export function Sidebar({ isOpen, onClose, onCreateSeries, onViewInvitations }: 
       {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between">
-          <h2 className="font-nfl text-lg text-white">My Series</h2>
+          <h2 className="font-nfl text-lg text-white">{isAppOwner ? 'All Series' : 'My Series'}</h2>
           <button
             onClick={onClose}
             className="lg:hidden p-1 hover:bg-white/10 rounded-lg transition-colors"

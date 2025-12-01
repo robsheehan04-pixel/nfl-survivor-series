@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { WeeklyPicker } from './WeeklyPicker';
@@ -12,11 +12,22 @@ type Tab = 'pick' | 'standings' | 'history';
 
 export function SeriesDetail() {
   const { activeSeries, user, leaveSeries, setActiveSeries } = useStore();
-  const [activeTab, setActiveTab] = useState<Tab>('pick');
+  const [activeTab, setActiveTab] = useState<Tab>('standings');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAdminPickModal, setShowAdminPickModal] = useState(false);
+
+  // Check if user is a member of the current series
+  const currentMember = activeSeries?.members.find(m => m.userId === user?.id);
+
+  // Set default tab based on membership
+  useEffect(() => {
+    if (activeSeries) {
+      // If user is a member, default to 'pick', otherwise 'standings'
+      setActiveTab(currentMember ? 'pick' : 'standings');
+    }
+  }, [activeSeries?.id, currentMember]);
 
   if (!activeSeries) {
     return (
@@ -36,8 +47,11 @@ export function SeriesDetail() {
     );
   }
 
-  const isOwner = activeSeries.createdBy === user?.id;
+  const isSeriesCreator = activeSeries.createdBy === user?.id;
+  const isAppOwner = user?.role === 'owner';
+  const isOwner = isSeriesCreator || isAppOwner;
   const member = activeSeries.members.find(m => m.userId === user?.id);
+  const isMember = !!member;
   const activePlayers = activeSeries.members.filter(m => !m.isEliminated).length;
 
   const handleLeaveSeries = () => {
@@ -46,16 +60,18 @@ export function SeriesDetail() {
     setShowLeaveConfirm(false);
   };
 
+  // Only show "Make Pick" tab if user is a member of the series
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    {
-      id: 'pick',
+    // Only show Make Pick if user is a member
+    ...(isMember ? [{
+      id: 'pick' as Tab,
       label: 'Make Pick',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       ),
-    },
+    }] : []),
     {
       id: 'standings',
       label: 'Standings',

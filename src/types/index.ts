@@ -1,8 +1,12 @@
+export type AppRole = 'owner' | 'user';
+export type SeriesRole = 'admin' | 'member';
+
 export interface User {
   id: string;
   email: string;
   name: string;
   picture: string;
+  role: AppRole;
 }
 
 export interface SeriesSettings {
@@ -48,6 +52,7 @@ export interface SeriesMember {
   isEliminated: boolean;
   joinedAt: Date;
   picks: Pick[];
+  role: SeriesRole;
 }
 
 export interface Pick {
