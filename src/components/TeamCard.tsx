@@ -68,8 +68,8 @@ export function TeamCard({
         ${isSelected ? 'selected ring-2 ring-yellow-400' : ''}
         ${disabled ? 'disabled opacity-60' : ''}
         ${!disabled ? 'cursor-pointer' : 'cursor-not-allowed'}
-        bg-gradient-to-br from-white/10 to-white/5
-        border border-white/10
+        bg-gradient-to-br from-gray-200 to-gray-300
+        border border-gray-400
         transition-all duration-300
       `}
       style={{
@@ -123,7 +123,7 @@ export function TeamCard({
 
         {/* Team Name */}
         <div className="text-center">
-          <p className={`${textSizes[size]} text-gray-400 leading-tight`}>
+          <p className={`${textSizes[size]} text-gray-600 leading-tight`}>
             {team.city}
           </p>
           <p
@@ -137,7 +137,7 @@ export function TeamCard({
         {/* Matchup info */}
         {matchup && opponentTeam && !isBye && size !== 'sm' && (
           <div className="mt-1 flex items-center gap-1.5 text-xs">
-            <span className="text-gray-500">
+            <span className="text-gray-600">
               {matchup.isHome ? 'vs' : '@'}
             </span>
             <img
@@ -145,7 +145,7 @@ export function TeamCard({
               alt={opponentTeam.name}
               className="w-4 h-4 object-contain"
             />
-            <span className="text-gray-400 font-medium">
+            <span className="text-gray-700 font-medium">
               {opponentTeam.id}
             </span>
           </div>
@@ -183,7 +183,7 @@ export function TeamCard({
 
         {/* Used badge */}
         {isUsed && !showResult && !isBye && (
-          <div className="mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/20 text-gray-400">
+          <div className="mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/30 text-gray-600">
             Already Used
           </div>
         )}
