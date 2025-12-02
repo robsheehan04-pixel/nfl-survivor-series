@@ -256,9 +256,11 @@ export const useStore = create<AppState>()(
         const { user, series, activeSeries } = get();
         if (!user) return false;
 
-        // Check if user is the creator
+        // Check if user is the creator or app owner
         const targetSeries = series.find(s => s.id === seriesId);
-        if (!targetSeries || targetSeries.createdBy !== user.id) {
+        const isCreator = targetSeries?.createdBy === user.id;
+        const isAppOwner = user.role === 'owner';
+        if (!targetSeries || (!isCreator && !isAppOwner)) {
           return false;
         }
 
