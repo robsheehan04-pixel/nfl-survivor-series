@@ -6,6 +6,7 @@ import { getTeamsForSeries, getTeamById, getWeekLabel } from '../data/teams';
 import { TeamCard } from './TeamCard';
 import { CountdownTimer, isDeadlinePassed } from './CountdownTimer';
 import { isTeamOnBye, getTeamMatchupInfo, OddsFormat } from '../lib/nflSchedule';
+import { getAllSoccerMatchups } from '../lib/soccerSchedule';
 
 export function WeeklyPicker() {
   const { activeSeries, user, makePick, getUserSeriesStatus, oddsFormat, setOddsFormat } = useStore();
@@ -57,6 +58,12 @@ export function WeeklyPicker() {
     return matchups;
   }, [sport, currentWeek]);
 
+  // Get matchup info for soccer teams
+  const soccerMatchups = useMemo(() => {
+    if (sport !== 'soccer') return {};
+    return getAllSoccerMatchups(currentWeek);
+  }, [sport, currentWeek]);
+
   // Get bye teams for current week (NFL only)
   const byeTeams = useMemo(() => {
     if (sport !== 'nfl') return [];
@@ -104,6 +111,8 @@ export function WeeklyPicker() {
     const pickedTeamUnified = getTeamById(currentPick.teamId, sport);
     const pickedTeam = sport === 'nfl' ? nflTeams.find(t => t.id === currentPick.teamId) : null;
     const matchup = pickedTeam ? teamMatchups[pickedTeam.id] : null;
+    const soccerMatchup = sport === 'soccer' ? soccerMatchups[currentPick.teamId] : null;
+    const soccerOpponent = soccerMatchup ? getTeamById(soccerMatchup.opponent, sport) : null;
 
     return (
       <motion.div
@@ -140,6 +149,11 @@ export function WeeklyPicker() {
                 }}
               />
               <p className="text-white font-bold text-lg">{pickedTeamUnified.displayName}</p>
+              {soccerMatchup && soccerOpponent && (
+                <p className="text-gray-400 text-sm mt-1">
+                  {soccerMatchup.isHome ? 'vs' : '@'} {soccerOpponent.name}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -197,6 +211,8 @@ export function WeeklyPicker() {
   const selectedTeamData = selectedTeam ? nflTeams.find(t => t.id === selectedTeam) : null;
   const selectedTeamUnified = selectedTeam ? getTeamById(selectedTeam, sport) : null;
   const selectedMatchup = selectedTeam ? teamMatchups[selectedTeam] : null;
+  const selectedSoccerMatchup = selectedTeam && sport === 'soccer' ? soccerMatchups[selectedTeam] : null;
+  const selectedSoccerOpponent = selectedSoccerMatchup ? getTeamById(selectedSoccerMatchup.opponent, sport) : null;
 
   return (
     <div className="space-y-6">
@@ -358,6 +374,8 @@ export function WeeklyPicker() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
           {allTeams.map((team) => {
             const isUsed = effectiveUsedTeams.includes(team.id);
+            const matchup = soccerMatchups[team.id];
+            const opponentTeam = matchup ? getTeamById(matchup.opponent, sport) : null;
 
             return (
               <button
@@ -383,6 +401,12 @@ export function WeeklyPicker() {
                   }}
                 />
                 <span className="text-sm font-medium text-white text-center">{team.name}</span>
+                {/* Matchup info */}
+                {matchup && opponentTeam && (
+                  <span className="text-xs text-gray-400 mt-1">
+                    {matchup.isHome ? 'vs' : '@'} {opponentTeam.abbreviation}
+                  </span>
+                )}
                 {isUsed && (
                   <span className="text-xs text-gray-500 mt-1">Used</span>
                 )}
@@ -461,6 +485,11 @@ export function WeeklyPicker() {
                       }}
                     />
                     <p className="text-white font-bold text-lg text-center">{selectedTeamUnified.displayName}</p>
+                    {selectedSoccerMatchup && selectedSoccerOpponent && (
+                      <p className="text-gray-400 text-sm mt-1 text-center">
+                        {selectedSoccerMatchup.isHome ? 'vs' : '@'} {selectedSoccerOpponent.name}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
